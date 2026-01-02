@@ -111,7 +111,7 @@ const extract = (image) => {
 
   // Step 2
   // prebuild cumulative sum matrix for fast computation
-  const imageDataSqr = [];
+  const imageDataSqr = new Float32Array(imageData.length);
   for (let i = 0; i < imageData.length; i++) {
     imageDataSqr[i] = imageData[i] * imageData[i];
   }
@@ -144,10 +144,21 @@ const extract = (image) => {
         continue;
       }
 
+      const templateWidth = 2 * TEMPLATE_SIZE + 1;
+      const nPixels = templateWidth * templateWidth;
+      let templateAverage = imageDataCumsum.query(
+        i - TEMPLATE_SIZE,
+        j - TEMPLATE_SIZE,
+        i + TEMPLATE_SIZE,
+        j + TEMPLATE_SIZE,
+      );
+      templateAverage /= nPixels;
+
       let max = -1.0;
       for (let jj = -SEARCH_SIZE1; jj <= SEARCH_SIZE1; jj++) {
         for (let ii = -SEARCH_SIZE1; ii <= SEARCH_SIZE1; ii++) {
           if (ii * ii + jj * jj <= SEARCH_SIZE2 * SEARCH_SIZE2) continue;
+
           const sim = _getSimilarity({
             image,
             cx: i + ii,
@@ -155,6 +166,7 @@ const extract = (image) => {
             vlen: vlen,
             tx: i,
             ty: j,
+            templateAverage, // Pass pre-calculated average
             imageDataCumsum,
             imageDataSqrCumsum,
           });
@@ -190,7 +202,7 @@ const extract = (image) => {
 };
 
 const _selectFeature = (options) => {
-  let {
+  const {
     image,
     featureMap,
     templateSize,
@@ -202,41 +214,37 @@ const _selectFeature = (options) => {
     imageDataCumsum,
     imageDataSqrCumsum,
   } = options;
-  const { data: imageData, width, height } = image;
-
-  //console.log("params: ", templateSize, templateSize, occSize, maxSimThresh, minSimThresh, sdThresh);
-
-  //occSize *= 2;
-  occSize = Math.floor(Math.min(image.width, image.height) / 10);
+  const { width, height } = image;
 
   const divSize = (templateSize * 2 + 1) * 3;
   const xDiv = Math.floor(width / divSize);
   const yDiv = Math.floor(height / divSize);
+  const maxFeatureNum = Math.floor(width / occSize) * Math.floor(height / occSize) + xDiv * yDiv;
 
-  let maxFeatureNum = Math.floor(width / occSize) * Math.floor(height / occSize) + xDiv * yDiv;
-  //console.log("max feature num: ", maxFeatureNum);
-
-  const coords = [];
-  const image2 = new Float32Array(imageData.length);
-  for (let i = 0; i < image2.length; i++) {
-    image2[i] = featureMap[i];
+  // Collect candidate features
+  const candidates = [];
+  for (let pos = 0; pos < featureMap.length; pos++) {
+    if (featureMap[pos] < maxSimThresh) {
+      candidates.push({
+        pos,
+        sim: featureMap[pos],
+        x: pos % width,
+        y: Math.floor(pos / width)
+      });
+    }
   }
 
-  let num = 0;
-  while (num < maxFeatureNum) {
-    let minSim = maxSimThresh;
-    let cx = -1;
-    let cy = -1;
-    for (let j = 0; j < height; j++) {
-      for (let i = 0; i < width; i++) {
-        if (image2[j * width + i] < minSim) {
-          minSim = image2[j * width + i];
-          cx = i;
-          cy = j;
-        }
-      }
-    }
-    if (cx === -1) break;
+  // Sort candidates by similarity (lowest first)
+  candidates.sort((a, b) => a.sim - b.sim);
+
+  const coords = [];
+  const invalidated = new Uint8Array(width * height);
+  const templateWidth = 2 * templateSize + 1;
+
+  for (let k = 0; k < candidates.length; k++) {
+    const { x: cx, y: cy, sim: minSim, pos } = candidates[k];
+
+    if (invalidated[pos]) continue;
 
     const vlen = _templateVar({
       image,
@@ -246,12 +254,8 @@ const _selectFeature = (options) => {
       imageDataCumsum,
       imageDataSqrCumsum,
     });
-    if (vlen === null) {
-      image2[cy * width + cx] = 1.0;
-      continue;
-    }
-    if (vlen / (templateSize * 2 + 1) < sdThresh) {
-      image2[cy * width + cx] = 1.0;
+
+    if (vlen === null || vlen / templateWidth < sdThresh) {
       continue;
     }
 
@@ -270,9 +274,11 @@ const _selectFeature = (options) => {
           cy: cy + j,
           tx: cx,
           ty: cy,
+          templateAverage: null,
           imageDataCumsum,
           imageDataSqrCumsum,
         });
+
         if (sim === null) continue;
 
         if (sim < min) {
@@ -288,26 +294,24 @@ const _selectFeature = (options) => {
     }
 
     if ((min < minSimThresh && min < minSim) || max > 0.99) {
-      image2[cy * width + cx] = 1.0;
       continue;
     }
 
     coords.push({ x: cx, y: cy });
-    //coords.push({
-    //mx: 1.0 * cx / scale,
-    //my: 1.0 * (height - cy) / scale,
-    //})
 
-    num += 1;
-    //console.log(num, '(', cx, ',', cy, ')', minSim, 'min = ', min, 'max = ', max, 'sd = ', vlen/(templateSize*2+1));
-
-    // no other feature points within occSize square
-    for (let j = -occSize; j <= occSize; j++) {
-      for (let i = -occSize; i <= occSize; i++) {
-        if (cy + j < 0 || cy + j >= height || cx + i < 0 || cx + i >= width) continue;
-        image2[(cy + j) * width + (cx + i)] = 1.0;
+    // Invalidate neighbors
+    const actualOccSize = Math.floor(Math.min(width, height) / 10);
+    for (let j = -actualOccSize; j <= actualOccSize; j++) {
+      const yy = cy + j;
+      if (yy < 0 || yy >= height) continue;
+      for (let i = -actualOccSize; i <= actualOccSize; i++) {
+        const xx = cx + i;
+        if (xx < 0 || xx >= width) continue;
+        invalidated[yy * width + xx] = 1;
       }
     }
+
+    if (coords.length >= maxFeatureNum) break;
   }
   return coords;
 };
@@ -354,7 +358,7 @@ const _templateVar = ({ image, cx, cy, sdThresh, imageDataCumsum, imageDataSqrCu
 };
 
 const _getSimilarity = (options) => {
-  const { image, cx, cy, vlen, tx, ty, imageDataCumsum, imageDataSqrCumsum } = options;
+  const { image, cx, cy, vlen, tx, ty, templateAverage, imageDataCumsum, imageDataSqrCumsum } = options;
   const { data: imageData, width, height } = image;
   const templateSize = TEMPLATE_SIZE;
 
@@ -363,13 +367,13 @@ const _getSimilarity = (options) => {
 
   const templateWidth = 2 * templateSize + 1;
 
-  let sx = imageDataCumsum.query(
+  const sx = imageDataCumsum.query(
     cx - templateSize,
     cy - templateSize,
     cx + templateSize,
     cy + templateSize,
   );
-  let sxx = imageDataSqrCumsum.query(
+  const sxx = imageDataSqrCumsum.query(
     cx - templateSize,
     cy - templateSize,
     cx + templateSize,
@@ -377,43 +381,49 @@ const _getSimilarity = (options) => {
   );
   let sxy = 0;
 
-  // !! This loop is the performance bottleneck. Use moving pointers to optimize
-  //
-  //   for (let i = cx - templateSize, i2 = tx - templateSize; i <= cx + templateSize; i++, i2++) {
-  //     for (let j = cy - templateSize, j2 = ty - templateSize; j <= cy + templateSize; j++, j2++) {
-  //       sxy += imageData[j*width + i] * imageData[j2*width + i2];
-  //     }
-  //   }
-  //
   let p1 = (cy - templateSize) * width + (cx - templateSize);
   let p2 = (ty - templateSize) * width + (tx - templateSize);
-  let nextRowOffset = width - templateWidth;
-  for (let j = 0; j < templateWidth; j++) {
-    for (let i = 0; i < templateWidth; i++) {
-      sxy += imageData[p1] * imageData[p2];
-      p1 += 1;
-      p2 += 1;
-    }
+  const nextRowOffset = width - templateWidth;
+
+  // Optimization: unrolling or tight loop
+  for (let j = 0; j < 13; j++) {
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+    sxy += imageData[p1++] * imageData[p2++];
+
     p1 += nextRowOffset;
     p2 += nextRowOffset;
   }
 
-  let templateAverage = imageDataCumsum.query(
-    tx - templateSize,
-    ty - templateSize,
-    tx + templateSize,
-    ty + templateSize,
-  );
-  templateAverage /= templateWidth * templateWidth;
-  sxy -= templateAverage * sx;
+  let avg;
+  if (templateAverage !== null && templateAverage !== undefined) {
+    avg = templateAverage;
+  } else {
+    avg = imageDataCumsum.query(
+      tx - templateSize,
+      ty - templateSize,
+      tx + templateSize,
+      ty + templateSize,
+    ) / (templateWidth * templateWidth);
+  }
+
+  sxy -= avg * sx;
 
   let vlen2 = sxx - (sx * sx) / (templateWidth * templateWidth);
-  if (vlen2 == 0) return null;
+  if (vlen2 <= 0) return null;
   vlen2 = Math.sqrt(vlen2);
 
-  // covariance between template and current pixel
-  const sim = (1.0 * sxy) / (vlen * vlen2);
-  return sim;
+  return (1.0 * sxy) / (vlen * vlen2);
 };
 
 export { extract };
