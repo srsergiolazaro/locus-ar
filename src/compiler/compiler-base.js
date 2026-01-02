@@ -145,14 +145,15 @@ class CompilerBase {
     return this.data;
   }
 
-  createProcessCanvas(img) {
+  createProcessCanvas() {
     // sub-class implements
     console.warn("missing createProcessCanvas implementation");
   }
 
-  compileTrack({ progressCallback, targetImages, basePercent }) {
+  compileTrack() {
     // sub-class implements
     console.warn("missing compileTrack implementation");
+    return Promise.resolve([]);
   }
 }
 

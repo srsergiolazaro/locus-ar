@@ -1,6 +1,6 @@
 import { Controller, UI } from "./index.js";
 
-const needsDOMRefresh = document.readyState === "complete" || document.readyState == "interactive";
+
 AFRAME.registerSystem("mindar-image-system", {
   container: null,
   video: null,
@@ -10,7 +10,7 @@ AFRAME.registerSystem("mindar-image-system", {
     this.anchorEntities = [];
   },
 
-  tick: function () {},
+  tick: function () { },
 
   setup: function ({
     imageTargetSrc,
@@ -121,7 +121,6 @@ AFRAME.registerSystem("mindar-image-system", {
 
   _startAR: async function () {
     const video = this.video;
-    const container = this.container;
 
     this.controller = new Controller({
       inputWidth: video.videoWidth,
@@ -196,7 +195,6 @@ AFRAME.registerSystem("mindar-image-system", {
     const fov = (2 * Math.atan((1 / proj[5] / vh) * container.clientHeight) * 180) / Math.PI; // vertical fov
     const near = proj[14] / (proj[10] - 1.0);
     const far = proj[14] / (proj[10] + 1.0);
-    const ratio = proj[5] / proj[0]; // (r-l) / (t-b)
     //console.log("loaded proj: ", proj, ". fov: ", fov, ". near: ", near, ". far: ", far, ". ratio: ", ratio);
     const newAspect = container.clientWidth / container.clientHeight;
     const cameraEle = container.getElementsByTagName("a-camera")[0];

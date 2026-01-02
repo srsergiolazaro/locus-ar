@@ -38,7 +38,7 @@ function runCode(backend, kernel, inputs, dtype) {
   //const temp = new Matrix();
   //console.log("Creating output shape:",kernel.outputShape);
   const temp = zeros(kernel.outputShape); //reshape([0,0,0],kernel.outputShape);
-  const output = map(temp, (value, index, matrix) => {
+  const output = map(temp, (_value, index) => {
     tempData.getOutputCoords = () => {
       return index;
     };

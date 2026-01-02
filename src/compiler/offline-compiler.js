@@ -219,7 +219,8 @@ const enablePerformanceOptimizations = async () => {
     };
 
     // Precalentamiento básico para todos los entornos
-    await tf.tidy(async () => {
+    tf.engine().startScope();
+    try {
       // Operaciones básicas de álgebra tensorial
       const a = tf.tensor([1, 2, 3, 4]);
       const b = tf.tensor([2, 2, 2, 2]);
@@ -227,14 +228,17 @@ const enablePerformanceOptimizations = async () => {
       const mult = a.mul(b);
       const div = a.div(b);
       await executeAndWait([result, mult, div]);
-    });
+    } finally {
+      tf.engine().endScope();
+    }
 
     // Tamaño de imagen adaptativo según entorno
     const size = isBackendDedicated ? 224 : isServerless ? 64 : 128;
     console.log(`🖼️ Precalentando con imagen de tamaño ${size}x${size}`);
 
     // Precalentamiento de operaciones de procesamiento de imágenes
-    await tf.tidy(async () => {
+    tf.engine().startScope();
+    try {
       // Crear imagen sintética para precalentamiento
       const image = tf.ones([size, size, 3]);
 
@@ -304,7 +308,9 @@ const enablePerformanceOptimizations = async () => {
         const edges = tf.sqrt(tf.add(tf.square(sobelX), tf.square(sobelY)));
         await executeAndWait([sobelX, sobelY, edges]);
       }
-    });
+    } finally {
+      tf.engine().endScope();
+    }
 
     // Forzar recolección de basura para limpiar completamente
     if (global.gc) {
@@ -454,9 +460,9 @@ export class OfflineCompiler extends CompilerBase {
                 const percentPerAction = percentPerImage / imageList.length;
 
                 // Usar tf.tidy para liberar memoria automáticamente en cada imagen
-                return await tf.tidy(() => {
+                return tf.tidy(() => {
                   // Extraer características con monitoreo de progreso
-                  const trackingData = extractTrackingFeatures(imageList, (index) => {
+                  const trackingData = extractTrackingFeatures(imageList, () => {
                     percent += percentPerAction;
                     progressCallback(basePercent + percent);
                   });
@@ -491,22 +497,22 @@ export class OfflineCompiler extends CompilerBase {
             const baseThreshold = backend === "webgl" ? 50 : 30;
             const adaptiveThreshold = Math.floor(
               baseThreshold *
-                (1 - Math.min(memPressure, 0.5)) *
-                (this.isServerless ? 0.6 : 1) *
-                (this.isBackendDedicated ? 1.2 : 1),
+              (1 - Math.min(memPressure, 0.5)) *
+              (this.isServerless ? 0.6 : 1) *
+              (this.isBackendDedicated ? 1.2 : 1),
             );
 
             console.log(
               `🧠 Memoria: ${(freeMem / 1024 / 1024).toFixed(1)}MB libres | ` +
-                `Presión: ${(memPressure * 100).toFixed(1)}% | ` +
-                `Umbral: ${adaptiveThreshold} tensores`,
+              `Presión: ${(memPressure * 100).toFixed(1)}% | ` +
+              `Umbral: ${adaptiveThreshold} tensores`,
             );
 
             if (memoryInfo.numTensors > adaptiveThreshold) {
               // Estrategia de limpieza diferenciada
               console.log(
                 `🧹 Limpieza ${this.isServerless ? "conservadora" : "agresiva"}: ` +
-                  `${memoryInfo.numTensors} tensores, ${(memoryInfo.numBytes / 1024 / 1024).toFixed(2)}MB`,
+                `${memoryInfo.numTensors} tensores, ${(memoryInfo.numBytes / 1024 / 1024).toFixed(2)}MB`,
               );
 
               // Estrategia de limpieza diferenciada:

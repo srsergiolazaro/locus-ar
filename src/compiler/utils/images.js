@@ -1,24 +1,4 @@
-// simpler version of upsampling. better performance
-const _upsampleBilinear = ({ image, padOneWidth, padOneHeight }) => {
-  const { width, height, data } = image;
-  const dstWidth = image.width * 2 + (padOneWidth ? 1 : 0);
-  const dstHeight = image.height * 2 + (padOneHeight ? 1 : 0);
-  const temp = new Float32Array(dstWidth * dstHeight);
 
-  for (let i = 0; i < width; i++) {
-    for (let j = 0; j < height; j++) {
-      const v = 0.25 * data[j * width + i];
-      const ii = Math.floor(i / 2);
-      const jj = Math.floor(j / 2);
-      const pos = Math.floor(j / 2) * dstWidth + Math.floor(i / 2);
-      temp[pos] += v;
-      temp[pos + 1] += v;
-      temp[pos + dstWidth] += v;
-      temp[pos + dstWidth + 1] += v;
-    }
-  }
-  return { data: temp, width: dstWidth, height: dstHeight };
-};
 
 // artoolkit version. slower. is it necessary?
 const upsampleBilinear = ({ image, padOneWidth, padOneHeight }) => {

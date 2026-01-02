@@ -10,7 +10,7 @@ export class Compiler extends CompilerBase {
   }
 
   compileTrack({ progressCallback, targetImages, basePercent }) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const worker = new CompilerWorker();
       worker.onmessage = (e) => {
         if (e.data.type === "progress") {

@@ -1,7 +1,6 @@
 import { Matcher } from "./matching/matcher.js";
 import { Estimator } from "./estimation/estimator.js";
 
-let projectionTransform = null;
 let matchingDataList = null;
 let debugMode = false;
 let matcher = null;
@@ -12,7 +11,6 @@ onmessage = (msg) => {
 
   switch (data.type) {
     case "setup":
-      projectionTransform = data.projectionTransform;
       matchingDataList = data.matchingDataList;
       debugMode = data.debugMode;
       matcher = new Matcher(data.inputWidth, data.inputHeight, debugMode);

@@ -81,7 +81,7 @@ class Controller {
   }
 
   addImageTargets(fileURL) {
-    return new Promise(async (resolve, reject) => {
+    return new Promise(async (resolve) => {
       const content = await fetch(fileURL);
       const buffer = await content.arrayBuffer();
       const result = this.addImageTargetsFromBuffer(buffer);
@@ -95,7 +95,6 @@ class Controller {
 
     const trackingDataList = [];
     const matchingDataList = [];
-    const imageListList = [];
     const dimensions = [];
     for (let i = 0; i < dataList.length; i++) {
       matchingDataList.push(dataList[i].matchingData);
@@ -329,7 +328,7 @@ class Controller {
 
   async detect(input) {
     const inputT = this.inputLoader.loadInput(input);
-    const { featurePoints, debugExtra } = await this.cropDetector.detect(inputT);
+    const { featurePoints, debugExtra } = this.cropDetector.detect(inputT);
     inputT.dispose();
     return { featurePoints, debugExtra };
   }
@@ -355,7 +354,7 @@ class Controller {
   }
 
   _workerMatch(featurePoints, targetIndexes) {
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve) => {
       this.workerMatchDone = (data) => {
         resolve({
           targetIndex: data.targetIndex,
@@ -368,7 +367,7 @@ class Controller {
   }
 
   _workerTrackUpdate(modelViewTransform, trackingFeatures) {
-    return new Promise(async (resolve, reject) => {
+    return new Promise((resolve) => {
       this.workerTrackDone = (data) => {
         resolve(data.modelViewTransform);
       };

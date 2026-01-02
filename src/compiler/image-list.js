@@ -30,8 +30,6 @@ const buildImageList = (inputImage) => {
 
   const imageList = [];
   for (let i = 0; i < scaleList.length; i++) {
-    const w = inputImage.width * scaleList[i];
-    const h = inputImage.height * scaleList[i];
     imageList.push(
       Object.assign(resize({ image: inputImage, ratio: scaleList[i] }), { scale: scaleList[i] }),
     );

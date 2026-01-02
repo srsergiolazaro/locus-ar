@@ -95,12 +95,12 @@ class InputLoader {
 
   _compileAndRun(program, inputs) {
     const outInfo = tf.backend().compileAndRun(program, inputs);
-    return tf.engine().makeTensorFromDataId(outInfo.dataId, outInfo.shape, outInfo.dtype);
+    return tf.engine().makeTensor(outInfo.dataId, outInfo.shape, outInfo.dtype);
   }
 
   _runWebGLProgram(program, inputs, outputType) {
     const outInfo = tf.backend().runWebGLProgram(program, inputs, outputType);
-    return tf.engine().makeTensorFromDataId(outInfo.dataId, outInfo.shape, outInfo.dtype);
+    return tf.engine().makeTensor(outInfo.dataId, outInfo.shape, outInfo.dtype);
   }
 }
 

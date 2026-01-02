@@ -20,8 +20,6 @@ class Tracker {
     markerDimensions,
     trackingDataList,
     projectionTransform,
-    inputWidth,
-    inputHeight,
     debugMode = false,
   ) {
     this.markerDimensions = markerDimensions;
@@ -78,10 +76,6 @@ class Tracker {
       modelViewProjectionTransform,
     );
 
-    const markerWidth = this.markerDimensions[targetIndex][0];
-    const markerHeight = this.markerDimensions[targetIndex][1];
-    const keyframeWidth = this.trackingKeyframeList[targetIndex].width;
-    const keyframeHeight = this.trackingKeyframeList[targetIndex].height;
 
     const featurePointsT = this.featurePointsListT[targetIndex];
     const imagePixelsT = this.imagePixelsListT[targetIndex];
@@ -390,7 +384,7 @@ class Tracker {
 
   _compileAndRun(program, inputs) {
     const outInfo = tf.backend().compileAndRun(program, inputs);
-    return tf.engine().makeTensorFromDataId(outInfo.dataId, outInfo.shape, outInfo.dtype);
+    return tf.engine().makeTensor(outInfo.dataId, outInfo.shape, outInfo.dtype);
   }
 }
 

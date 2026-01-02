@@ -122,7 +122,7 @@ export class MindARThree {
   }
 
   _startVideo() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       this.video = document.createElement("video");
 
       this.video.setAttribute("autoplay", "");
@@ -176,9 +176,8 @@ export class MindARThree {
   }
 
   _startAR() {
-    return new Promise(async (resolve, reject) => {
+    return new Promise(async (resolve) => {
       const video = this.video;
-      const container = this.container;
 
       this.controller = new Controller({
         inputWidth: video.videoWidth,
@@ -268,7 +267,7 @@ export class MindARThree {
         this.postMatrixs.push(postMatrix);
       }
 
-      await this.controller.dummyRun(this.video);
+      this.controller.dummyRun(this.video);
       this.ui.hideLoading();
       this.ui.showScanning();
 
@@ -323,7 +322,6 @@ export class MindARThree {
     const fov = (2 * Math.atan((1 / proj[5]) * fovAdjust) * 180) / Math.PI; // vertical fov
     const near = proj[14] / (proj[10] - 1.0);
     const far = proj[14] / (proj[10] + 1.0);
-    const ratio = proj[5] / proj[0]; // (r-l) / (t-b)
 
     camera.fov = fov;
     camera.near = near;

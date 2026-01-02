@@ -1,4 +1,3 @@
-import { Matrix, inverse } from "ml-matrix";
 import { createRandomizer } from "../utils/randomizer.js";
 import {
   quadrilateralConvex,
@@ -7,7 +6,6 @@ import {
   multiplyPointHomographyInhomogenous,
   checkThreePointsConsistent,
   checkFourPointsConsistent,
-  determinant,
 } from "../utils/geometry.js";
 import { solveHomography } from "../utils/homography.js";
 

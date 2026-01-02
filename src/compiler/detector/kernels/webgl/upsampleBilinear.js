@@ -1,7 +1,7 @@
 import { MathBackendWebGL } from "@tensorflow/tfjs-backend-webgl";
 
 const cache = {};
-function GetProgram(image, targetImage) {
+function GetProgram(targetImage) {
   const targetImageWidth = targetImage.shape[1];
   const targetImageHeight = targetImage.shape[0];
   const kernelKey = "w" + targetImageWidth + "h" + targetImageHeight;
@@ -50,7 +50,7 @@ export const upsampleBilinear = (args) => {
   /** @type {MathBackendWebGL} */
   const backend = args.backend;
 
-  const program = GetProgram(image, targetImage);
+  const program = GetProgram(targetImage);
   return backend.runWebGLProgram(program, [image], image.dtype);
 };
 

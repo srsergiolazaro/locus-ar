@@ -15,7 +15,7 @@ onmessage = (msg) => {
       const percentPerAction = percentPerImage / imageList.length;
 
       //console.log("compiling tracking...", i);
-      const trackingData = extractTrackingFeatures(imageList, (index) => {
+      const trackingData = extractTrackingFeatures(imageList, () => {
         //console.log("done tracking", i, index);
         percent += percentPerAction;
         postMessage({ type: "progress", percent });

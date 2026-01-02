@@ -2,24 +2,12 @@ import * as FakeShader from "./fakeShader.js";
 const oneOver2PI = 0.159154943091895;
 const ORIENTATION_NUM_BINS = 36;
 
-const cache = {};
 function GetPrograms(prunedExtremasT, radialPropertiesT, pyramidImagesLength) {
-  const key = `${pyramidImagesLength}|${prunedExtremasT.shape[0]}|${radialPropertiesT.shape[0]}`;
-  //if (!cache.hasOwnProperty(key)) {
   const imageVariableNames = [];
   for (let i = 1; i < pyramidImagesLength; i++) {
     imageVariableNames.push("image" + i);
   }
 
-  /*  let kernel1SubCodes = `float getPixel(int octave, int y, int x) {`;
-    for (let i = 1; i < pyramidImagesLength; i++) {
-        kernel1SubCodes += `
-              if (octave == ${i}) {
-                  return getImage${i}(y, x);
-              }
-              `;
-    }
-    kernel1SubCodes += `}`; */
 
   const kernel1 = {
     variableNames: [...imageVariableNames, "extrema", "radial"],
@@ -34,11 +22,6 @@ function GetPrograms(prunedExtremasT, radialPropertiesT, pyramidImagesLength) {
         }
         return this[k](y, x);
       };
-      /** replicated undefined behavior like you have on OpenGL */
-      function atan(x, y) {
-        if (x == 0 && y == 0) return 1.57;
-        return Math.atan2(x, y);
-      }
       //void main() {
       const coords = this.getOutputCoords();
       const featureIndex = coords[0];

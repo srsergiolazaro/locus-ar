@@ -38,10 +38,6 @@ function GetProgram(numDogPyramidImages, extremasListLength) {
   return program;
 }
 
-const int = Math.trunc;
-function clamp(n, min, max) {
-  return Math.min(Math.max(min, n), max - 1);
-}
 
 export const computeLocalization = (args) => {
   /** @type {import('@tensorflow/tfjs').TensorInfo} */

@@ -2,7 +2,6 @@ import * as FakeShader from "./fakeShader.js";
 
 function GetKernels(image) {
   const imageWidth = image.shape[1];
-  const key = "w" + imageWidth;
 
   const imageHeight = image.shape[0];
   const kernel1 = {
