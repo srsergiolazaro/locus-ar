@@ -4,9 +4,7 @@ import path from 'path';
 import { Jimp } from 'jimp';
 import { fileURLToPath } from 'url';
 
-// Import TensorFlow and specifically the Node backend for performance in tests
-import * as tf from '@tensorflow/tfjs';
-import '@tensorflow/tfjs-node';
+// GPU.js will run in CPU mode in Node.js (no headless-gl)
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

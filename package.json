@@ -29,7 +29,8 @@
     ],
     "scripts": {
         "build": "tsc",
-        "prepublishOnly": "npm run build"
+        "prepublishOnly": "npm run build",
+        "test": "vitest"
     },
     "peerDependencies": {
         "aframe": ">=1.5.0",
@@ -39,17 +40,11 @@
         "three": ">=0.160.0"
     },
     "dependencies": {
-        "@tensorflow/tfjs": "^4.22.0",
-        "@tensorflow/tfjs-backend-cpu": "^4.22.0",
-        "@tensorflow/tfjs-backend-webgl": "^4.22.0",
-        "lucide-react": "^0.477.0",
+        "gpu.js": "^2.16.0",
         "ml-matrix": "^6.10.4",
-        "nanoid": "^5.0.7",
-        "svd-js": "^1.1.1",
         "tinyqueue": "^2.0.3"
     },
     "devDependencies": {
-        "@tensorflow/tfjs-node": "^4.22.0",
         "@types/react": "^18.3.3",
         "@types/react-dom": "^18.3.0",
         "@types/three": "^0.170.0",

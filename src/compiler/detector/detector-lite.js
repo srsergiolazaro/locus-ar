@@ -5,12 +5,13 @@
  * Optimizado para velocidad en compilación offline.
  * 
  * Implementa:
- * - Construcción de pirámide gaussiana
+ * - Construcción de pirámide gaussiana (con aceleración GPU opcional)
  * - Diferencia de Gaussianas (DoG) para detección de extremos
  * - Descriptores FREAK simplificados
  */
 
 import { FREAKPOINTS } from "./freak.js";
+import { gpuCompute } from "../utils/gpu-compute.js";
 
 const PYRAMID_MIN_SIZE = 8;
 const PYRAMID_MAX_OCTAVE = 5;
@@ -19,13 +20,25 @@ const MAX_FEATURES_PER_BUCKET = 5;
 const ORIENTATION_NUM_BINS = 36;
 const FREAK_EXPANSION_FACTOR = 7.0;
 
+// Global GPU mode flag
+let globalUseGPU = true;
+
+/**
+ * Set global GPU mode for all DetectorLite instances
+ * @param {boolean} enabled - Whether to use GPU acceleration
+ */
+export const setDetectorGPUMode = (enabled) => {
+    globalUseGPU = enabled;
+};
+
 /**
  * Detector de características sin TensorFlow
  */
 export class DetectorLite {
-    constructor(width, height) {
+    constructor(width, height, options = {}) {
         this.width = width;
         this.height = height;
+        this.useGPU = options.useGPU !== undefined ? options.useGPU : globalUseGPU;
 
         let numOctaves = 0;
         let w = width, h = height;
@@ -90,6 +103,30 @@ export class DetectorLite {
      * Construye una pirámide gaussiana
      */
     _buildGaussianPyramid(data, width, height) {
+        // Use GPU-accelerated pyramid if available
+        if (this.useGPU) {
+            try {
+                const gpuPyramid = gpuCompute.buildPyramid(data, width, height, this.numOctaves);
+
+                // Convert GPU pyramid format to expected format
+                const pyramid = [];
+                for (let i = 0; i < gpuPyramid.length && i < this.numOctaves; i++) {
+                    const level = gpuPyramid[i];
+                    // Apply second blur for DoG computation
+                    const img2 = this._applyGaussianFilter(level.data, level.width, level.height);
+                    pyramid.push([
+                        { data: level.data, width: level.width, height: level.height },
+                        { data: img2.data, width: level.width, height: level.height }
+                    ]);
+                }
+                return pyramid;
+            } catch (e) {
+                // Fall back to CPU if GPU fails
+                console.warn("GPU pyramid failed, falling back to CPU:", e.message);
+            }
+        }
+
+        // Original CPU implementation
         const pyramid = [];
         let currentData = data;
         let currentWidth = width;

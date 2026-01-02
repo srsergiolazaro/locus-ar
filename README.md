@@ -56,9 +56,9 @@ const config = {
 
 ---
 
-## 🖼 High-Performance Offline Compiler
+## 🖼 High-Performance Compiler
 
-The `OfflineCompiler` is the core of the TapTapp asset pipeline. It has been re-engineered for extreme speed and reliability.
+TaptApp AR includes a **pure JavaScript** compiler that works in **both browser and Node.js** environments. No TensorFlow required!
 
 ### ⚡ Performance Benchmarks
 
@@ -67,36 +67,50 @@ The `OfflineCompiler` is the core of the TapTapp asset pipeline. It has been re-
 | **Compilation time** | **~0.17s** | ~0.52s |
 | **Tracking points** | **54 points** | 47 points |
 | TensorFlow required | ❌ **No** | ✅ Yes |
+| Works in browser | ✅ **Yes** | ❌ No |
 | Speed comparison | **~3x faster** | baseline |
 
-> Tested on 1024x1024 image. TaptApp detects **+15% more points** while being **3x faster** without TensorFlow.
+> Tested on 1024x1024 image. TaptApp detects **+15% more points** while being **3x faster**.
 
-### Basic Usage
+### 🌐 Browser Usage (Frontend)
+
+Compile images directly in the browser using Web Workers:
+
+```javascript
+import { Compiler } from '@srsergio/taptapp-ar/compiler/compiler.js';
+
+const compiler = new Compiler();
+
+// imageData = { data: Uint8Array, width: number, height: number }
+const result = await compiler.compileTrack({
+  targetImages: [imageData],
+  progressCallback: (progress) => console.log(`Compiling: ${progress}%`),
+  basePercent: 0
+});
+```
+
+### 🖥️ Node.js Usage (Backend/Serverless)
+
+For server-side compilation with multi-core parallelism:
 
 ```typescript
 import { OfflineCompiler } from '@srsergio/taptapp-ar/compiler/offline-compiler.js';
 
 const compiler = new OfflineCompiler();
 
-async function compile(imageBuffer: Buffer) {
-  // targetImages is an array of images to compile into the same .mind file
-  const result = await compiler.compileTrack({
-    targetImages: [imageBuffer],
-    progressCallback: (progress) => console.log(`Compiling: ${progress}%`),
-    basePercent: 0
-  });
-  
-  return result;
-}
+const result = await compiler.compileTrack({
+  targetImages: [imageBuffer],
+  progressCallback: (progress) => console.log(`Compiling: ${progress}%`),
+  basePercent: 0
+});
 ```
 
 ### 🛠 Architecture & Optimizations
 
-- **Pure JavaScript Engine**: The `DetectorLite` class implements feature detection entirely in JavaScript, eliminating TensorFlow dependencies and startup overhead.
-- **On-Demand Similarity Algorithm**: Lazily evaluates only the most promising feature candidates, slashing CPU time by 90%.
-- **Worker Pool Parallelism**: Automatically spawns a `WorkerPool` using Node.js worker threads to parallelize work across all available CPU cores.
-- **Optimized Gaussian Filters**: Unrolled kernel operations with pre-calculated offsets for maximum performance.
-- **Zero Cold Start**: No TensorFlow initialization means instant startup in serverless environments.
+- **Pure JavaScript Engine**: Feature detection runs entirely in JS, eliminating TensorFlow dependencies.
+- **Universal Runtime**: Same algorithm works in browser (Web Workers) and Node.js (`worker_threads`).
+- **On-Demand Similarity**: Lazily evaluates only promising candidates, slashing CPU time by 90%.
+- **Zero Cold Start**: No TensorFlow initialization = instant startup in serverless environments.
 
 ---
 

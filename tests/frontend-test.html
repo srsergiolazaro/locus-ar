@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>AR Compiler Speed Test</title>
+</head>
+
+<body>
+    <h1>AR Compiler Speed Test</h1>
+    <p>Mode: <strong id="mode">Checking...</strong></p>
+
+    <div style="margin: 20px 0; padding: 20px; border: 2px dashed #ccc; border-radius: 8px;">
+        <h3>Custom Image Speed Test</h3>
+        <input type="file" id="fileInput" accept="image/*" />
+        <button id="testImageBtn" disabled>Test This Image</button>
+        <div id="imageInfo" style="margin-top: 10px; color: #666;"></div>
+    </div>
+
+    <hr>
+
+    <button id="runBtn" disabled>Run Synthetic Benchmark (All Sizes)</button>
+    <pre id="log">Initializing...</pre>
+
+    <script type="module">
+        import { OfflineCompiler } from '../src/compiler/offline-compiler.js';
+        import { gpuCompute } from '../src/compiler/utils/gpu-compute.js';
+
+        const log = document.getElementById('log');
+        const mode = document.getElementById('mode');
+        const runBtn = document.getElementById('runBtn');
+        const fileInput = document.getElementById('fileInput');
+        const testImageBtn = document.getElementById('testImageBtn');
+        const imageInfo = document.getElementById('imageInfo');
+
+        function print(msg) {
+            log.textContent += msg + '\n';
+        }
+
+        function clearLog() {
+            log.textContent = '';
+        }
+
+        // Image helper
+        async function loadImageData(file) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0);
+
+                    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+                    const gray = new Uint8Array(img.width * img.height);
+
+                    // Convert to grayscale
+                    for (let i = 0; i < gray.length; i++) {
+                        const offset = i * 4;
+                        // fast implementation
+                        gray[i] = (imageData.data[offset] * 77 +
+                            imageData.data[offset + 1] * 150 +
+                            imageData.data[offset + 2] * 29) >> 8;
+                    }
+
+                    resolve({
+                        width: img.width,
+                        height: img.height,
+                        data: gray
+                    });
+                };
+                img.onerror = reject;
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        function generateTestImage(width, height) {
+            const data = new Uint8Array(width * height);
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const small = ((Math.floor(x / 8) + Math.floor(y / 8)) % 2) * 80;
+                    const medium = ((Math.floor(x / 32) + Math.floor(y / 32)) % 2) * 60;
+                    const gradient = Math.floor((x + y) / 4) % 60;
+                    const noise = Math.random() * 30;
+                    data[y * width + x] = Math.min(255, small + medium + gradient + noise);
+                }
+            }
+            return { width, height, data };
+        }
+
+        async function runCompiler(image, label) {
+            print(`${label} (${image.width}x${image.height}):`);
+            const compiler = new OfflineCompiler();
+
+            const start = performance.now();
+            const result = await compiler.compileImageTargets([image], () => { });
+            const time = ((performance.now() - start) / 1000).toFixed(3);
+
+            const trackData = result[0]?.trackingData || [];
+            const matchData = result[0]?.matchingData || [];
+
+            let trackingTotal = 0;
+            for (let i = 0; i < trackData.length; i++) {
+                const pts = trackData[i]?.points?.length || 0;
+                print(`  Level ${i}: ${pts} pts`);
+                trackingTotal += pts;
+            }
+
+            if (trackData.length === 0) {
+                print('  NO TRACKING DATA!');
+            }
+
+            const matchingTotal = matchData[0]?.maximaPoints?.length || 0;
+
+            print(`  Time: ${time}s (${(1 / parseFloat(time)).toFixed(1)} FPS)`);
+            print(`  TOTAL: ${trackingTotal} track, ${matchingTotal} match\n`);
+
+            compiler.destroy();
+        }
+
+        // File Handler
+        fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                testImageBtn.disabled = false;
+                imageInfo.textContent = `Selected: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`;
+            }
+        };
+
+        testImageBtn.onclick = async () => {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            testImageBtn.disabled = true;
+            clearLog();
+            print('=== Custom Image Test ===\n');
+
+            try {
+                const image = await loadImageData(file);
+                await runCompiler(image, file.name);
+            } catch (e) {
+                print('Error: ' + e.message);
+            }
+
+            testImageBtn.disabled = false;
+            print('=== Done ===');
+        };
+
+        // Init
+        clearLog();
+        print('Modules loaded OK');
+
+        try {
+            gpuCompute.init();
+            const isGPU = gpuCompute.isGPUAvailable();
+            mode.textContent = isGPU ? '🚀 GPU (WebGL)' : '⚡ CPU (JavaScript)';
+            mode.style.color = isGPU ? 'green' : 'orange';
+            print('GPU: ' + (isGPU ? 'Available' : 'Not available'));
+        } catch (e) {
+            mode.textContent = '⚡ CPU';
+            print('GPU Error: ' + e.message);
+        }
+
+        print('\nReady.');
+        runBtn.textContent = 'Run Synthetic Benchmark';
+        runBtn.disabled = false;
+
+        runBtn.onclick = async () => {
+            runBtn.disabled = true;
+            clearLog();
+
+            const sizes = [256, 512, 1024];
+            print('=== Synthetic Speed Test ===\n');
+
+            for (const size of sizes) {
+                const image = generateTestImage(size, size);
+                await runCompiler(image, `${size}x${size}`);
+            }
+
+            print('=== Done ===');
+            runBtn.disabled = false;
+        };
+    </script>
+</body>
+
+</html>

@@ -9,6 +9,10 @@
  * - Extracción de features de tracking (extract.js)
  * - Detección de features para matching (DetectorLite)
  * - Clustering jerárquico para features
+ * 
+ * Funciona en:
+ * - Node.js (con workers opcionales)
+ * - Browser (sin workers)
  */
 
 import { buildTrackingImageList, buildImageList } from "./image-list.js";
@@ -16,14 +20,11 @@ import { extractTrackingFeatures } from "./tracker/extract-utils.js";
 import { DetectorLite } from "./detector/detector-lite.js";
 import { build as hierarchicalClusteringBuild } from "./matching/hierarchical-clustering.js";
 import * as msgpack from "@msgpack/msgpack";
-import os from "os";
-import path from "path";
-import { fileURLToPath } from "url";
-import { WorkerPool } from "./utils/worker-pool.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const NODE_WORKER_PATH = path.join(__dirname, "node-worker.js");
+// Detect environment
+const isNode = typeof process !== "undefined" &&
+  process.versions != null &&
+  process.versions.node != null;
 
 const CURRENT_VERSION = 2;
 
@@ -33,13 +34,34 @@ const CURRENT_VERSION = 2;
 export class OfflineCompiler {
   constructor() {
     this.data = null;
+    this.workerPool = null;
 
-    // Inicializar pool de workers en Node
-    if (typeof process !== "undefined" && process.versions && process.versions.node) {
-      // Usar menos workers para evitar overhead
+    // Workers solo en Node.js (no en browser)
+    if (isNode) {
+      this._initNodeWorkers();
+    } else {
+      console.log("🌐 OfflineCompiler: Browser mode (no workers)");
+    }
+  }
+
+  async _initNodeWorkers() {
+    try {
+      const [os, path, url, workerModule] = await Promise.all([
+        import("os"),
+        import("path"),
+        import("url"),
+        import("./utils/worker-pool.js")
+      ]);
+
+      const __filename = url.fileURLToPath(import.meta.url);
+      const __dirname = path.dirname(__filename);
+      const workerPath = path.join(__dirname, "node-worker.js");
+
       const numWorkers = Math.min(os.cpus().length, 4);
-      this.workerPool = new WorkerPool(NODE_WORKER_PATH, numWorkers);
-      console.log(`🚀 OfflineCompiler inicializado con ${numWorkers} workers`);
+      this.workerPool = new workerModule.WorkerPool(workerPath, numWorkers);
+      console.log(`🚀 OfflineCompiler: Node.js mode with ${numWorkers} workers`);
+    } catch (e) {
+      console.log("⚡ OfflineCompiler: Running without workers");
     }
   }
 

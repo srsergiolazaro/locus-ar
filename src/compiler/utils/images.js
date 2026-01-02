@@ -37,54 +37,105 @@ const upsampleBilinear = ({ image, padOneWidth, padOneHeight }) => {
 
 const downsampleBilinear = ({ image }) => {
   const { data, width, height } = image;
+  const dstWidth = width >>> 1; // Floor division by 2
+  const dstHeight = height >>> 1;
 
-  const dstWidth = Math.floor(width / 2);
-  const dstHeight = Math.floor(height / 2);
+  const temp = new Uint8Array(dstWidth * dstHeight);
 
-  const temp = new Float32Array(dstWidth * dstHeight);
-  const offsets = [0, 1, width, width + 1];
+  // Cache width for fast indexing
+  const srcWidth = width | 0;
+  const srcRowStep = (srcWidth * 2) | 0;
+
+  let srcRowOffset = 0;
+  let dstIndex = 0;
 
   for (let j = 0; j < dstHeight; j++) {
+    let srcPos = srcRowOffset;
+
     for (let i = 0; i < dstWidth; i++) {
-      let srcPos = j * 2 * width + i * 2;
-      let value = 0.0;
-      for (let d = 0; d < offsets.length; d++) {
-        value += data[srcPos + offsets[d]];
-      }
-      value *= 0.25;
-      temp[j * dstWidth + i] = value;
+      // Unrolled loop for performance
+      // (0,0), (1,0), (0,1), (1,1)
+      const value = (
+        data[srcPos] +
+        data[srcPos + 1] +
+        data[srcPos + srcWidth] +
+        data[srcPos + srcWidth + 1]
+      ) * 0.25;
+
+      temp[dstIndex++] = value | 0; // Fast floor
+      srcPos += 2;
     }
+    srcRowOffset += srcRowStep;
   }
+
   return { data: temp, width: dstWidth, height: dstHeight };
 };
 
 const resize = ({ image, ratio }) => {
-  const width = Math.round(image.width * ratio);
-  const height = Math.round(image.height * ratio);
+  // Fast path for identity
+  if (ratio === 1) {
+    return {
+      data: new Uint8Array(image.data), // Copy to be safe/consistent
+      width: image.width,
+      height: image.height
+    };
+  }
 
-  //const imageData = new Float32Array(width * height);
+  // Recursive downsampling for better quality on large reductions
+  if (ratio <= 0.5) {
+    // 1024 -> 512 -> ...
+    return resize({
+      image: downsampleBilinear({ image }),
+      ratio: ratio * 2
+    });
+  }
+
+  const width = Math.round(image.width * ratio) | 0;
+  const height = Math.round(image.height * ratio) | 0;
   const imageData = new Uint8Array(width * height);
-  for (let i = 0; i < width; i++) {
-    let si1 = Math.round((1.0 * i) / ratio);
-    let si2 = Math.round((1.0 * (i + 1)) / ratio) - 1;
-    if (si2 >= image.width) si2 = image.width - 1;
 
-    for (let j = 0; j < height; j++) {
-      let sj1 = Math.round((1.0 * j) / ratio);
-      let sj2 = Math.round((1.0 * (j + 1)) / ratio) - 1;
-      if (sj2 >= image.height) sj2 = image.height - 1;
+  const srcData = image.data;
+  const srcW = image.width | 0;
+  const srcH = image.height | 0;
+  // Pre-calculate limits to avoid Math.min inside loop
+  const srcW_1 = (srcW - 1) | 0;
+  const srcH_1 = (srcH - 1) | 0;
 
-      let sum = 0;
-      let count = 0;
-      for (let ii = si1; ii <= si2; ii++) {
-        for (let jj = sj1; jj <= sj2; jj++) {
-          sum += 1.0 * image.data[jj * image.width + ii];
-          count += 1;
-        }
-      }
-      imageData[j * width + i] = Math.floor(sum / count);
+  let dstIndex = 0;
+
+  for (let j = 0; j < height; j++) {
+    // Y coords
+    const srcY = j / ratio;
+    const y0 = srcY | 0; // Math.floor
+    const y1 = (y0 < srcH_1 ? y0 + 1 : srcH_1) | 0;
+    const fy = srcY - y0;
+    const ify = 1 - fy;
+
+    // Row offsets
+    const row0 = (y0 * srcW) | 0;
+    const row1 = (y1 * srcW) | 0;
+
+    for (let i = 0; i < width; i++) {
+      // X coords
+      const srcX = i / ratio;
+      const x0 = srcX | 0; // Math.floor
+      const x1 = (x0 < srcW_1 ? x0 + 1 : srcW_1) | 0;
+      const fx = srcX - x0;
+      const ifx = 1 - fx;
+
+      // Bilinear interpolation optimized
+      // v = (1-fx)(1-fy)v00 + fx(1-fy)v10 + (1-fx)fy*v01 + fx*fy*v11
+      // Factored: (1-fy) * ((1-fx)v00 + fx*v10) + fy * ((1-fx)v01 + fx*v11)
+
+      const val0 = srcData[row0 + x0] * ifx + srcData[row0 + x1] * fx;
+      const val1 = srcData[row1 + x0] * ifx + srcData[row1 + x1] * fx;
+
+      const value = val0 * ify + val1 * fy;
+
+      imageData[dstIndex++] = value | 0;
     }
   }
+
   return { data: imageData, width: width, height: height };
 };
 

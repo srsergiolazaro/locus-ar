@@ -1,4 +1,5 @@
 import { Cumsum } from "../utils/cumsum.js";
+import { gpuCompute } from "../utils/gpu-compute.js";
 
 const SEARCH_SIZE1 = 10;
 const SEARCH_SIZE2 = 2;
@@ -13,6 +14,17 @@ const MIN_THRESH = 0.2;
 const SD_THRESH = 8.0;
 const OCCUPANCY_SIZE = 10;  // Reducido de 16 para permitir puntos más cercanos
 
+// GPU mode flag - set to false to use original JS implementation
+let useGPU = true;
+
+/**
+ * Set GPU mode for extraction
+ * @param {boolean} enabled - Whether to use GPU acceleration
+ */
+export const setGPUMode = (enabled) => {
+  useGPU = enabled;
+};
+
 /*
  * Input image is in grey format. the imageData array size is width * height. value range from 0-255
  * pixel value at row r and c = imageData[r * width + c]
@@ -24,48 +36,67 @@ const OCCUPANCY_SIZE = 10;  // Reducido de 16 para permitir puntos más cercanos
 const extract = (image) => {
   const { data: imageData, width, height } = image;
 
-  // Step 1 - Optimized JS Edge & Maxima detection
-  const dValue = new Float32Array(imageData.length);
-  const isCandidate = new Uint8Array(imageData.length);
+  let dValue, isCandidate;
 
-  for (let j = 1; j < height - 1; j++) {
-    const rowOffset = j * width;
-    const prevRowOffset = (j - 1) * width;
-    const nextRowOffset = (j + 1) * width;
+  if (useGPU) {
+    // GPU-accelerated edge detection
+    const result = gpuCompute.edgeDetection(imageData, width, height);
+    dValue = result.dValue;
+    isCandidate = result.isCandidate;
+  } else {
+    // Original JS implementation
+    dValue = new Float32Array(imageData.length);
+    isCandidate = new Uint8Array(imageData.length);
 
-    for (let i = 1; i < width - 1; i++) {
-      const pos = rowOffset + i;
+    for (let j = 1; j < height - 1; j++) {
+      const rowOffset = j * width;
+      const prevRowOffset = (j - 1) * width;
+      const nextRowOffset = (j + 1) * width;
 
-      // dx/dy with tight loops
-      let dx = (imageData[prevRowOffset + i + 1] - imageData[prevRowOffset + i - 1] +
-        imageData[rowOffset + i + 1] - imageData[rowOffset + i - 1] +
-        imageData[nextRowOffset + i + 1] - imageData[nextRowOffset + i - 1]) / 768;
+      for (let i = 1; i < width - 1; i++) {
+        const pos = rowOffset + i;
 
-      let dy = (imageData[nextRowOffset + i - 1] - imageData[prevRowOffset + i - 1] +
-        imageData[nextRowOffset + i] - imageData[prevRowOffset + i] +
-        imageData[nextRowOffset + i + 1] - imageData[prevRowOffset + i + 1]) / 768;
+        // dx/dy with tight loops
+        let dx = (imageData[prevRowOffset + i + 1] - imageData[prevRowOffset + i - 1] +
+          imageData[rowOffset + i + 1] - imageData[rowOffset + i - 1] +
+          imageData[nextRowOffset + i + 1] - imageData[nextRowOffset + i - 1]) / 768;
 
-      dValue[pos] = Math.sqrt((dx * dx + dy * dy) / 2);
+        let dy = (imageData[nextRowOffset + i - 1] - imageData[prevRowOffset + i - 1] +
+          imageData[nextRowOffset + i] - imageData[prevRowOffset + i] +
+          imageData[nextRowOffset + i + 1] - imageData[prevRowOffset + i + 1]) / 768;
+
+        dValue[pos] = Math.sqrt((dx * dx + dy * dy) / 2);
+      }
+    }
+
+    // Step 1.2 - Local Maxima (for JS path)
+    for (let j = 1; j < height - 1; j++) {
+      const rowOffset = j * width;
+      for (let i = 1; i < width - 1; i++) {
+        const pos = rowOffset + i;
+        const val = dValue[pos];
+        if (val > 0 &&
+          val >= dValue[pos - 1] && val >= dValue[pos + 1] &&
+          val >= dValue[pos - width] && val >= dValue[pos + width]) {
+          isCandidate[pos] = 1;
+        }
+      }
     }
   }
 
-  // Step 1.2 - Local Maxima & Histogram
+  // Step 1.2 - Build Histogram from detected candidates
   const dValueHist = new Uint32Array(1000);
   let allCount = 0;
   for (let j = 1; j < height - 1; j++) {
     const rowOffset = j * width;
     for (let i = 1; i < width - 1; i++) {
       const pos = rowOffset + i;
-      const val = dValue[pos];
-      if (val > 0 &&
-        val >= dValue[pos - 1] && val >= dValue[pos + 1] &&
-        val >= dValue[pos - width] && val >= dValue[pos + width]) {
-
+      if (isCandidate[pos]) {
+        const val = dValue[pos];
         let k = Math.floor(val * 1000);
         if (k > 999) k = 999;
         dValueHist[k]++;
         allCount++;
-        isCandidate[pos] = 1;
       }
     }
   }
