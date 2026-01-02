@@ -62,13 +62,14 @@ The `OfflineCompiler` is the core of the TapTapp asset pipeline. It has been re-
 
 ### ⚡ Performance Benchmarks
 
-| Metric | Value |
-| :--- | :--- |
-| Single image compilation | **~1.3s** |
-| 4 images (parallel) | **~5.4s** |
-| Tracking points extracted | **35 points** |
-| Matching points extracted | **380 points** |
-| TensorFlow required | **❌ No** |
+| Metric | TaptApp AR | MindAR Official |
+| :--- | :--- | :--- |
+| **Compilation time** | **~0.17s** | ~0.52s |
+| **Tracking points** | **54 points** | 47 points |
+| TensorFlow required | ❌ **No** | ✅ Yes |
+| Speed comparison | **~3x faster** | baseline |
+
+> Tested on 1024x1024 image. TaptApp detects **+15% more points** while being **3x faster** without TensorFlow.
 
 ### Basic Usage
 

@@ -3,16 +3,15 @@ import { Cumsum } from "../utils/cumsum.js";
 const SEARCH_SIZE1 = 10;
 const SEARCH_SIZE2 = 2;
 
-//const TEMPLATE_SIZE = 22 // DEFAULT
+// Template parameters - ajustados para más puntos
 const TEMPLATE_SIZE = 6;
-const TEMPLATE_SD_THRESH = 5.0;
+const TEMPLATE_SD_THRESH = 4.0;  // Reducido de 5.0 para aceptar más candidatos
 const MAX_SIM_THRESH = 0.95;
 
 const MAX_THRESH = 0.9;
-//const MIN_THRESH = 0.55;
 const MIN_THRESH = 0.2;
 const SD_THRESH = 8.0;
-const OCCUPANCY_SIZE = (24 * 2) / 3;
+const OCCUPANCY_SIZE = 10;  // Reducido de 16 para permitir puntos más cercanos
 
 /*
  * Input image is in grey format. the imageData array size is width * height. value range from 0-255
@@ -71,8 +70,8 @@ const extract = (image) => {
     }
   }
 
-  // Determine dValue threshold for top 2%
-  const maxPoints = 0.02 * width * height;
+  // Determine dValue threshold for top 5% (aumentado de 2% para más candidatos)
+  const maxPoints = 0.05 * width * height;
   let kThresh = 999;
   let filteredCount = 0;
   while (kThresh >= 0) {
@@ -115,7 +114,7 @@ const extract = (image) => {
   const templateWidth = 2 * TEMPLATE_SIZE + 1;
   const nPixels = templateWidth * templateWidth;
 
-  const actualOccSize = Math.floor(Math.min(width, height) / 10);
+  const actualOccSize = Math.floor(Math.min(width, height) / 12);  // Reducido de 10 para más densidad
 
   for (let i = 0; i < candidates.length; i++) {
     const { x, y, pos } = candidates[i];
