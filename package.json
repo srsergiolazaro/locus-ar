@@ -1,6 +1,6 @@
 {
     "name": "@srsergio/taptapp-ar",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "AR Visualizer and Compiler for Astro and React",
     "repository": {
         "type": "git",

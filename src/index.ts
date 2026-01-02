@@ -1,5 +1,3 @@
-export * from "./react/AREditor";
-export * from "./react/ProgressDialog";
 export * from "./react/types";
 export * from "./compiler/offline-compiler";
 
