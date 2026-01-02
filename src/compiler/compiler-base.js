@@ -65,21 +65,35 @@ class CompilerBase {
         }
 
         // compute matching data: 50% progress
-        const percentPerImage = 50.0 / targetImages.length;
-        let percent = 0.0;
+        let matchingDataList;
+        if (this.compileMatch) {
+          matchingDataList = await this.compileMatch({
+            progressCallback,
+            targetImages,
+            basePercent: 0,
+          });
+        } else {
+          const percentPerImage = 50.0 / targetImages.length;
+          let percent = 0.0;
+          const matchingPromises = targetImages.map(async (targetImage, i) => {
+            const imageList = buildImageList(targetImage);
+            const percentPerAction = percentPerImage / imageList.length;
+
+            const matchingData = await _extractMatchingFeatures(imageList, () => {
+              percent += percentPerAction;
+              progressCallback(percent);
+            });
+            return matchingData;
+          });
+          matchingDataList = await Promise.all(matchingPromises);
+        }
+
         this.data = [];
         for (let i = 0; i < targetImages.length; i++) {
-          const targetImage = targetImages[i];
-          const imageList = buildImageList(targetImage);
-          const percentPerAction = percentPerImage / imageList.length;
-          const matchingData = await _extractMatchingFeatures(imageList, () => {
-            percent += percentPerAction;
-            progressCallback(percent);
-          });
           this.data.push({
-            targetImage: targetImage,
-            imageList: imageList,
-            matchingData: matchingData,
+            targetImage: targetImages[i],
+            imageList: buildImageList(targetImages[i]),
+            matchingData: matchingDataList[i],
           });
         }
 

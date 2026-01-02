@@ -2,7 +2,7 @@ import { compute as hammingCompute } from "./hamming-distance.js";
 import { createRandomizer } from "../utils/randomizer.js";
 
 const MIN_FEATURE_PER_NODE = 16;
-const NUM_ASSIGNMENT_HYPOTHESES = 128;
+const NUM_ASSIGNMENT_HYPOTHESES = 64;
 const NUM_CENTERS = 8;
 
 const _computeKMedoids = (options) => {

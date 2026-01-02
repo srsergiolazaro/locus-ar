@@ -3,7 +3,7 @@ class Cumsum {
   constructor(data, width, height) {
     this.width = width;
     this.height = height;
-    this.cumsum = new Float64Array(width * height);
+    this.cumsum = new Int32Array(width * height);
 
     this.cumsum[0] = data[0];
     for (let i = 1; i < width; i++) {

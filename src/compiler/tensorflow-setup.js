@@ -9,6 +9,24 @@ import "./detector/kernels/cpu/index.js";
 import "./detector/kernels/webgl/index.js";
 
 /**
+ * Intenta cargar el backend de Node.js si está disponible
+ */
+const loadNodeBackend = async () => {
+  if (typeof process !== "undefined" && process.versions && process.versions.node) {
+    try {
+      // Usar import dinámico para evitar errores en el navegador
+      await import("@tensorflow/tfjs-node");
+      console.log("🚀 TensorFlow Node.js backend cargado correctamente");
+      return true;
+    } catch (e) {
+      console.warn("⚠️ No se pudo cargar @tensorflow/tfjs-node, usando fallback");
+      return false;
+    }
+  }
+  return false;
+};
+
+/**
  * Configuración optimizada de TensorFlow para diferentes entornos
  * @returns {Promise<string>} El backend activo ('webgl', 'cpu')
  */
@@ -16,6 +34,9 @@ export async function setupTensorFlow() {
   console.log("🔧 Iniciando configuración optimizada de TensorFlow.js...");
 
   try {
+    // Intentar cargar backend de Node.js primero
+    const nodeBackendLoaded = await loadNodeBackend();
+
     // Optimizaciones base para todos los backends
     tf.ENV.set("DEBUG", false);
     tf.ENV.set("WEBGL_CPU_FORWARD", false);
@@ -23,8 +44,15 @@ export async function setupTensorFlow() {
 
     // Configuración adaptativa de memoria según el entorno
     const isServerless = typeof window === "undefined";
-    const memoryThreshold = isServerless ? 1024 * 1024 * 4 : 1024 * 1024 * 8; // 4MB en serverless, 8MB en cliente
+    const memoryThreshold = isServerless ? 1024 * 1024 * 4 : 1024 * 1024 * 8;
     tf.ENV.set("CPU_HANDOFF_SIZE_THRESHOLD", memoryThreshold);
+
+    if (nodeBackendLoaded) {
+      await tf.setBackend("tensorflow");
+      console.log("🚀 Backend TensorFlow (Node.js) activado");
+      await tf.ready();
+      return "tensorflow";
+    }
 
     // Configuración específica para entorno serverless
     if (isServerless) {
