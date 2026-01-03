@@ -13,10 +13,13 @@
 import { FREAKPOINTS } from "./freak.js";
 import { gpuCompute } from "../utils/gpu-compute.js";
 
-const PYRAMID_MIN_SIZE = 8;
-const PYRAMID_MAX_OCTAVE = 5;
+const PYRAMID_MIN_SIZE = 4; // Reducido de 8 a 4 para exprimir al máximo la resolución
+// PYRAMID_MAX_OCTAVE ya no es necesario, el límite lo da PYRAMID_MIN_SIZE
+
+
 const NUM_BUCKETS_PER_DIMENSION = 8;
-const MAX_FEATURES_PER_BUCKET = 10; // Aumentado de 3 a 10 para mayor densidad de puntos tracking
+const MAX_FEATURES_PER_BUCKET = 15; // Aumentado para mayor densidad de puntos tracking y estabilidad
+
 const ORIENTATION_NUM_BINS = 36;
 const FREAK_EXPANSION_FACTOR = 7.0;
 
@@ -46,8 +49,10 @@ export class DetectorLite {
             w = Math.floor(w / 2);
             h = Math.floor(h / 2);
             numOctaves++;
-            if (numOctaves === PYRAMID_MAX_OCTAVE) break;
+            // Límite de seguridad razonable para evitar bucles infinitos en imágenes gigantes
+            if (numOctaves === 10) break;
         }
+
         this.numOctaves = numOctaves;
     }
 

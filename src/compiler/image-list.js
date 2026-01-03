@@ -5,7 +5,9 @@ import { resize } from "./utils/images.js";
  * Un valor más bajo permite detectar imágenes más pequeñas pero aumenta el tiempo de procesamiento
  * @constant {number}
  */
-const MIN_IMAGE_PIXEL_SIZE = 100;
+const MIN_IMAGE_PIXEL_SIZE = 32;
+
+
 
 /**
  * Construye una lista de imágenes con diferentes escalas para detección de características
@@ -49,7 +51,8 @@ const buildTrackingImageList = (inputImage) => {
   const minDimension = Math.min(inputImage.width, inputImage.height);
   const scaleList = [];
   const imageList = [];
-  // Solo generamos la versión de 128px para ahorrar espacio (antes generaba 256px y 128px)
+  // Generamos versiones de 256px y 128px para tracking robusto a diferentes distancias
+  scaleList.push(256.0 / minDimension);
   scaleList.push(128.0 / minDimension);
   for (let i = 0; i < scaleList.length; i++) {
     imageList.push(
@@ -58,5 +61,6 @@ const buildTrackingImageList = (inputImage) => {
   }
   return imageList;
 };
+
 
 export { buildImageList, buildTrackingImageList };

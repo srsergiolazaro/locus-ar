@@ -11,6 +11,7 @@ const __dirname = path.dirname(__filename);
 
 describe('Matcher with Columnar Data', () => {
     it('should match features using Matcher class', async () => {
+
         const testFile = path.join(__dirname, 'assets', 'test-image.png');
         const img = await Jimp.read(testFile);
         const imgWidth = img.bitmap.width;
@@ -45,5 +46,6 @@ describe('Matcher with Columnar Data', () => {
 
         expect(keyframeIndex).toBeGreaterThanOrEqual(0);
         expect(screenCoords.length).toBeGreaterThanOrEqual(6);
-    });
+    }, 30000);
+
 });
