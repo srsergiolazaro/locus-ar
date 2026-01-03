@@ -1,4 +1,5 @@
 import { Controller } from "./controller.js";
+import { OneEuroFilter } from "../libs/one-euro-filter.js";
 
 /**
  * 🍦 SimpleAR - Dead-simple vanilla AR for image overlays
@@ -51,6 +52,7 @@ class SimpleAR {
         this.controller = null;
         this.isTracking = false;
         this.lastMatrix = null;
+        this.filters = []; // One filter per target
     }
 
     /**
@@ -149,13 +151,33 @@ class SimpleAR {
             }
 
             this.lastMatrix = worldMatrix;
-            this._positionOverlay(modelViewTransform, targetIndex);
+
+            // Smooth the tracking data if filters are initialized
+            if (!this.filters[targetIndex]) {
+                this.filters[targetIndex] = new OneEuroFilter({ minCutOff: 0.1, beta: 0.01 });
+            }
+
+            // Flatten mVT for filtering (3x4 matrix = 12 values)
+            const flatMVT = [
+                mVT[0][0], mVT[0][1], mVT[0][2], mVT[0][3],
+                mVT[1][0], mVT[1][1], mVT[1][2], mVT[1][3],
+                mVT[2][0], mVT[2][1], mVT[2][2], mVT[2][3]
+            ];
+            const smoothedFlat = this.filters[targetIndex].filter(Date.now(), flatMVT);
+            const smoothedMVT = [
+                [smoothedFlat[0], smoothedFlat[1], smoothedFlat[2], smoothedFlat[3]],
+                [smoothedFlat[4], smoothedFlat[5], smoothedFlat[6], smoothedFlat[7]],
+                [smoothedFlat[8], smoothedFlat[9], smoothedFlat[10], smoothedFlat[11]]
+            ];
+
+            this._positionOverlay(smoothedMVT, targetIndex);
             this.onUpdateCallback && this.onUpdateCallback({ targetIndex, worldMatrix });
 
         } else {
             // Target lost
             if (this.isTracking) {
                 this.isTracking = false;
+                if (this.filters[targetIndex]) this.filters[targetIndex].reset();
                 this.overlay && (this.overlay.style.opacity = '0');
                 this.onLost && this.onLost({ targetIndex });
             }
