@@ -153,6 +153,7 @@ class Controller {
     }
 
     this.markerDimensions = allDimensions;
+    this.matchingDataList = allMatchingData; // Store for main-thread fallback
     return { dimensions: allDimensions, matchingDataList: allMatchingData, trackingDataList: allTrackingData };
   }
 
@@ -395,6 +396,12 @@ class Controller {
 
   _workerMatch(featurePoints, targetIndexes) {
     return new Promise((resolve) => {
+      // If no worker available, process on main thread
+      if (!this.worker) {
+        this._matchOnMainThread(featurePoints, targetIndexes).then(resolve);
+        return;
+      }
+
       this.workerMatchDone = (data) => {
         resolve({
           targetIndex: data.targetIndex,
@@ -402,23 +409,85 @@ class Controller {
           debugExtra: data.debugExtra,
         });
       };
-      this.worker && this.worker.postMessage({ type: "match", featurePoints: featurePoints, targetIndexes });
+      this.worker.postMessage({ type: "match", featurePoints: featurePoints, targetIndexes });
     });
+  }
+
+  async _matchOnMainThread(featurePoints, targetIndexes) {
+    // Lazy initialize Matcher and Estimator for main thread
+    if (!this.mainThreadMatcher) {
+      const { Matcher } = await import("./matching/matcher.js");
+      const { Estimator } = await import("./estimation/estimator.js");
+      this.mainThreadMatcher = new Matcher(this.inputWidth, this.inputHeight, this.debugMode);
+      this.mainThreadEstimator = new Estimator(this.projectionTransform);
+    }
+
+    let matchedTargetIndex = -1;
+    let matchedModelViewTransform = null;
+    let matchedDebugExtra = null;
+
+    for (let i = 0; i < targetIndexes.length; i++) {
+      const matchingIndex = targetIndexes[i];
+
+      const { keyframeIndex, screenCoords, worldCoords, debugExtra } = this.mainThreadMatcher.matchDetection(
+        this.matchingDataList[matchingIndex],
+        featurePoints,
+      );
+      matchedDebugExtra = debugExtra;
+
+      if (keyframeIndex !== -1) {
+        const modelViewTransform = this.mainThreadEstimator.estimate({ screenCoords, worldCoords });
+
+        if (modelViewTransform) {
+          matchedTargetIndex = matchingIndex;
+          matchedModelViewTransform = modelViewTransform;
+        }
+        break;
+      }
+    }
+
+    return {
+      targetIndex: matchedTargetIndex,
+      modelViewTransform: matchedModelViewTransform,
+      debugExtra: matchedDebugExtra,
+    };
   }
 
   _workerTrackUpdate(modelViewTransform, trackingFeatures) {
     return new Promise((resolve) => {
+      // If no worker available, process on main thread
+      if (!this.worker) {
+        this._trackUpdateOnMainThread(modelViewTransform, trackingFeatures).then(resolve);
+        return;
+      }
+
       this.workerTrackDone = (data) => {
         resolve(data.modelViewTransform);
       };
       const { worldCoords, screenCoords } = trackingFeatures;
-      this.worker && this.worker.postMessage({
+      this.worker.postMessage({
         type: "trackUpdate",
         modelViewTransform,
         worldCoords,
         screenCoords,
       });
     });
+  }
+
+  async _trackUpdateOnMainThread(modelViewTransform, trackingFeatures) {
+    // Lazy initialize Estimator for main thread
+    if (!this.mainThreadEstimator) {
+      const { Estimator } = await import("./estimation/estimator.js");
+      this.mainThreadEstimator = new Estimator(this.projectionTransform);
+    }
+
+    const { worldCoords, screenCoords } = trackingFeatures;
+    const finalModelViewTransform = this.mainThreadEstimator.refineEstimate({
+      initialModelViewTransform: modelViewTransform,
+      worldCoords,
+      screenCoords,
+    });
+    return finalModelViewTransform;
   }
 
   _glModelViewMatrix(modelViewTransform, targetIndex) {
