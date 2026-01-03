@@ -8,50 +8,15 @@
  * All methods have pure JS fallbacks that work universally.
  */
 
-// Detect if running in Node.js
-const isNode = typeof process !== 'undefined' &&
-    process.versions != null &&
-    process.versions.node != null;
-
-// Lazy load GPU.js only in browser environments
-let GPU = null;
-let gpuInstance = null;
-let gpuLoadAttempted = false;
+// This module now uses pure JavaScript for all operations to ensure 
+// zero-dependency builds and universal compatibility (Node.js & Browser).
+// The pure JS implementations are highly optimized for performance.
 
 /**
- * Try to initialize GPU.js (browser only)
+ * No-op initialization for compatibility
  */
 const tryInitGPU = () => {
-    if (gpuLoadAttempted) return gpuInstance;
-    gpuLoadAttempted = true;
-
-    // Skip GPU.js in Node.js to avoid headless-gl issues
-    if (isNode) {
-        console.log("⚡ Running in Node.js - using optimized JS");
-        return null;
-    }
-
-    // Dynamically import GPU.js in browser
-    try {
-        // Use dynamic import pattern that works in browsers
-        const GPUModule = globalThis.GPU || (typeof require !== 'undefined' ? require('gpu.js').GPU : null);
-        if (GPUModule) {
-            GPU = GPUModule;
-            gpuInstance = new GPU({ mode: "gpu" });
-
-            // Test if GPU works
-            const testKernel = gpuInstance.createKernel(function () { return 1; }).setOutput([1]);
-            testKernel();
-            testKernel.destroy();
-
-            console.log("🚀 GPU.js: Using GPU acceleration");
-        }
-    } catch (e) {
-        console.log("⚡ GPU.js unavailable, using optimized JS:", e.message);
-        gpuInstance = null;
-    }
-
-    return gpuInstance;
+    return null;
 };
 
 // ============================================================================

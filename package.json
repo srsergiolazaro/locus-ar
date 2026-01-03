@@ -41,7 +41,6 @@
     },
     "dependencies": {
         "@msgpack/msgpack": "^3.0.0-beta2",
-        "gpu.js": "^2.16.0",
         "ml-matrix": "^6.10.4",
         "tinyqueue": "^2.0.3"
     },
