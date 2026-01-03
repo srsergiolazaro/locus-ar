@@ -207,13 +207,21 @@ class SimpleAR {
             console.log('Final Scale:', finalScale.toFixed(4));
         }
 
-        // Apply
+        // Apply styles to prevent CSS interference (like max-width: 100%)
+        this.overlay.style.maxWidth = 'none';
+        this.overlay.style.maxHeight = 'none';
         this.overlay.style.width = `${markerW}px`;
-        this.overlay.style.height = 'auto'; // Maintain aspect ratio of the overlay asset
+        this.overlay.style.height = 'auto'; // Maintain aspect ratio if user has a custom overlay
         this.overlay.style.position = 'absolute';
         this.overlay.style.transformOrigin = 'center center';
+        this.overlay.style.display = 'block';
+        this.overlay.style.margin = '0';
         this.overlay.style.left = '0';
         this.overlay.style.top = '0';
+
+        // Apply final transform
+        // We use translate to move the center of the elements to 0,0 
+        // Then apply our calculated screen position
         this.overlay.style.transform = `
             translate(${screenX}px, ${screenY}px)
             translate(-50%, -50%)
