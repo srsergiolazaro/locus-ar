@@ -348,7 +348,7 @@ class Controller {
             }
 
             this.onUpdate &&
-              this.onUpdate({ type: "updateMatrix", targetIndex: i, worldMatrix: clone });
+              this.onUpdate({ type: "updateMatrix", targetIndex: i, worldMatrix: clone, modelViewTransform: trackingState.currentModelViewTransform });
           }
         }
 

@@ -55,7 +55,9 @@ class SimpleAR {
 
         // 4. Load targets (supports single URL or array of URLs)
         const targets = Array.isArray(this.targetSrc) ? this.targetSrc : [this.targetSrc];
-        await this.controller.addImageTargets(targets);
+        const result = await this.controller.addImageTargets(targets);
+        this.markerDimensions = result.dimensions; // [ [w1, h1], [w2, h2], ... ]
+
         this.controller.processVideo(this.video);
 
         return this;
@@ -75,6 +77,7 @@ class SimpleAR {
             this.video = null;
         }
         this.isTracking = false;
+        this.markerDimensions = [];
     }
 
     _createVideo() {
@@ -121,7 +124,7 @@ class SimpleAR {
     _handleUpdate(data) {
         if (data.type !== 'updateMatrix') return;
 
-        const { targetIndex, worldMatrix } = data;
+        const { targetIndex, worldMatrix, modelViewTransform } = data;
 
         if (worldMatrix) {
             // Target found
@@ -132,7 +135,7 @@ class SimpleAR {
             }
 
             this.lastMatrix = worldMatrix;
-            this._positionOverlay(worldMatrix);
+            this._positionOverlay(modelViewTransform, targetIndex);
             this.onUpdateCallback && this.onUpdateCallback({ targetIndex, worldMatrix });
 
         } else {
@@ -145,9 +148,10 @@ class SimpleAR {
         }
     }
 
-    _positionOverlay(worldMatrix) {
-        if (!this.overlay) return;
+    _positionOverlay(mVT, targetIndex) {
+        if (!this.overlay || !this.markerDimensions[targetIndex]) return;
 
+        const [markerW, markerH] = this.markerDimensions[targetIndex];
         const containerRect = this.container.getBoundingClientRect();
         const videoW = this.video.videoWidth;
         const videoH = this.video.videoHeight;
@@ -159,13 +163,11 @@ class SimpleAR {
         let displayW, displayH, offsetX, offsetY;
 
         if (containerAspect > videoAspect) {
-            // Container is wider - video fills width, crops height
             displayW = containerRect.width;
             displayH = containerRect.width / videoAspect;
             offsetX = 0;
             offsetY = (containerRect.height - displayH) / 2;
         } else {
-            // Container is taller - video fills height, crops width  
             displayH = containerRect.height;
             displayW = containerRect.height * videoAspect;
             offsetX = (containerRect.width - displayW) / 2;
@@ -175,27 +177,34 @@ class SimpleAR {
         const scaleX = displayW / videoW;
         const scaleY = displayH / videoH;
 
-        // Extract position and rotation from world matrix
-        // Matrix is column-major: [m0,m1,m2,m3, m4,m5,m6,m7, m8,m9,m10,m11, m12,m13,m14,m15]
-        const tx = worldMatrix[12];
-        const ty = worldMatrix[13];
-        const tz = worldMatrix[14];
+        // Project the center of the marker (markerW/2, markerH/2, 0) into camera space
+        // Marker coordinates are pixels from top-left.
+        const tx = mVT[0][0] * (markerW / 2) + mVT[0][1] * (markerH / 2) + mVT[0][3];
+        const ty = mVT[1][0] * (markerW / 2) + mVT[1][1] * (markerH / 2) + mVT[1][3];
+        const tz = mVT[2][0] * (markerW / 2) + mVT[2][1] * (markerH / 2) + mVT[2][3];
 
-        // focal length (roughly 45 degrees FOV)
+        // focal length (roughly 45 degrees FOV match Controller.js)
         const f = videoH / 2 / Math.tan((45.0 * Math.PI / 180) / 2);
 
-        // Standard perspective projection to screen space
-        // tx, ty, tz are in marker units relative to camera
+        // Perspective projection to screen space
         const screenX = offsetX + (videoW / 2 + (tx * f / -tz)) * scaleX;
         const screenY = offsetY + (videoH / 2 - (ty * f / -tz)) * scaleY;
 
-        // Calculate rotation and scale from the matrix
-        const rotation = Math.atan2(worldMatrix[1], worldMatrix[0]);
-        const matrixScale = Math.sqrt(worldMatrix[0] ** 2 + worldMatrix[1] ** 2);
+        // Use the first row of mVT to determine rotation and base scale component
+        // Since marker coordinates are in pixels, mVT[0][0] and mVT[0][1] are unitless scale factors
+        const rotation = Math.atan2(mVT[1][0], mVT[0][0]);
+        const matrixScale = Math.sqrt(mVT[0][0] ** 2 + mVT[1][0] ** 2);
 
         // Perspective scale: how much larger/smaller the object is based on distance (tz)
+        // Correct scale should make a marker-width sized element cover the marker.
         const perspectiveScale = (f / -tz) * scaleX;
-        const finalScale = matrixScale * perspectiveScale;
+
+        // The overlay element has its own width in CSS pixels (e.g. 200px)
+        const overlayCSSWidth = parseFloat(this.overlay.style.width) || 200;
+
+        // Final scale = (Target Width in Pixels on screen) / (Overlay CSS Width)
+        // matrixScale is usually ~1.0 if tracking is rigid
+        const finalScale = (matrixScale * markerW * perspectiveScale) / overlayCSSWidth;
 
         // Apply transform
         this.overlay.style.position = 'absolute';
