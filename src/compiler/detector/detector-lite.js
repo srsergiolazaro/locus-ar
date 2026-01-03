@@ -16,7 +16,7 @@ import { gpuCompute } from "../utils/gpu-compute.js";
 const PYRAMID_MIN_SIZE = 8;
 const PYRAMID_MAX_OCTAVE = 5;
 const NUM_BUCKETS_PER_DIMENSION = 8;
-const MAX_FEATURES_PER_BUCKET = 3; // Optimizado: Reducido de 5 a 3 para menor peso
+const MAX_FEATURES_PER_BUCKET = 10; // Aumentado de 3 a 10 para mayor densidad de puntos tracking
 const ORIENTATION_NUM_BINS = 36;
 const FREAK_EXPANSION_FACTOR = 7.0;
 
@@ -282,7 +282,7 @@ export class DetectorLite {
                 for (let x = 1; x < width - 1; x++) {
                     const val = curr.data[y * width + x];
 
-                    if (Math.abs(val) < 0.015) continue; // Threshold
+                    if (Math.abs(val) < 0.01) continue; // Threshold reducido de 0.015 a 0.01 para mayor sensibilidad
 
                     let isMaxima = true;
                     let isMinima = true;

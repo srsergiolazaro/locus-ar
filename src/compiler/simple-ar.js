@@ -179,16 +179,23 @@ class SimpleAR {
         // Matrix is column-major: [m0,m1,m2,m3, m4,m5,m6,m7, m8,m9,m10,m11, m12,m13,m14,m15]
         const tx = worldMatrix[12];
         const ty = worldMatrix[13];
-        const matrixScale = Math.sqrt(worldMatrix[0] ** 2 + worldMatrix[1] ** 2);
+        const tz = worldMatrix[14];
+
+        // focal length (roughly 45 degrees FOV)
+        const f = videoH / 2 / Math.tan((45.0 * Math.PI / 180) / 2);
+
+        // Standard perspective projection to screen space
+        // tx, ty, tz are in marker units relative to camera
+        const screenX = offsetX + (videoW / 2 + (tx * f / -tz)) * scaleX;
+        const screenY = offsetY + (videoH / 2 - (ty * f / -tz)) * scaleY;
+
+        // Calculate rotation and scale from the matrix
         const rotation = Math.atan2(worldMatrix[1], worldMatrix[0]);
+        const matrixScale = Math.sqrt(worldMatrix[0] ** 2 + worldMatrix[1] ** 2);
 
-        // Convert from normalized coords to screen coords
-        const screenX = offsetX + (videoW / 2 + tx) * scaleX;
-        const screenY = offsetY + (videoH / 2 - ty) * scaleY;
-
-        // Scale factor: use a reasonable multiplier (0.5 instead of 0.01)
-        // The matrixScale from the tracking is in image-space coordinates
-        const finalScale = matrixScale * scaleX * 0.5;
+        // Perspective scale: how much larger/smaller the object is based on distance (tz)
+        const perspectiveScale = (f / -tz) * scaleX;
+        const finalScale = matrixScale * perspectiveScale;
 
         // Apply transform
         this.overlay.style.position = 'absolute';
