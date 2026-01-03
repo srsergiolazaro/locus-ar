@@ -156,6 +156,59 @@ if (targetIndex !== -1) {
 }
 ```
 
+### 4. Vanilla JS (No Framework) 🍦
+The **simplest way** to use AR—no Three.js, no A-Frame. Just overlay an image on the tracked target.
+
+```javascript
+import { SimpleAR } from '@srsergio/taptapp-ar';
+
+const ar = new SimpleAR({
+  container: document.getElementById('ar-container'),   // Where to render
+  targetSrc: './my-target.mind',                        // Your compiled .mind file
+  overlay: document.getElementById('my-overlay'),       // Element to position on target
+  onFound: () => console.log('Target detected! 🎯'),
+  onLost: () => console.log('Target lost 👋')
+});
+
+await ar.start();
+
+// When done:
+ar.stop();
+```
+
+#### 📁 Minimal HTML
+```html
+<div id="ar-container" style="width: 100vw; height: 100vh;">
+  <img id="my-overlay" src="./overlay.png" 
+       style="opacity: 0; z-index: 1; width: 200px; transition: opacity 0.3s;" />
+</div>
+
+<script type="module">
+  import { SimpleAR } from '@srsergio/taptapp-ar';
+  
+  const ar = new SimpleAR({
+    container: document.getElementById('ar-container'),
+    targetSrc: './targets.mind',
+    overlay: document.getElementById('my-overlay'),
+  });
+  
+  ar.start();
+</script>
+```
+
+#### ⚙️ SimpleAR Options
+| Option | Required | Description |
+| :--- | :--- | :--- |
+| `container` | ✅ | DOM element where video + overlay render |
+| `targetSrc` | ✅ | URL to your `.mind` file |
+| `overlay` | ✅ | DOM element to position on the target |
+| `onFound` | ❌ | Callback when target is detected |
+| `onLost` | ❌ | Callback when target is lost |
+| `onUpdate` | ❌ | Called each frame with `{ targetIndex, worldMatrix }` |
+| `cameraConfig` | ❌ | Camera constraints (default: `{ facingMode: 'environment', width: 1280, height: 720 }`) |
+
+---
+
 #### 🛠️ Life-cycle Management
 Properly management is crucial to avoid memory leaks:
 

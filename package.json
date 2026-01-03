@@ -37,6 +37,20 @@
         "react-dom": ">=18.0.0",
         "three": ">=0.160.0"
     },
+    "peerDependenciesMeta": {
+        "aframe": {
+            "optional": true
+        },
+        "react": {
+            "optional": true
+        },
+        "react-dom": {
+            "optional": true
+        },
+        "three": {
+            "optional": true
+        }
+    },
     "dependencies": {
         "@msgpack/msgpack": "^3.0.0-beta2",
         "ml-matrix": "^6.10.4",
