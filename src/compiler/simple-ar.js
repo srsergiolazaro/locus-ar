@@ -156,91 +156,66 @@ class SimpleAR {
         const [markerW, markerH] = this.markerDimensions[targetIndex];
         const containerRect = this.container.getBoundingClientRect();
 
-        // 1. Raw Video Dimensions (Sensor Frame)
         const videoW = this.video.videoWidth;
         const videoH = this.video.videoHeight;
 
-        // 2. Detect if screen orientation is different from video buffer
         const isPortrait = containerRect.height > containerRect.width;
         const isVideoLandscape = videoW > videoH;
         const needsRotation = isPortrait && isVideoLandscape;
 
-        // Effective dimensions of the display buffer
-        const effectiveBufferW = needsRotation ? videoH : videoW;
-        const effectiveBufferH = needsRotation ? videoW : videoH;
-
-        const containerAspect = containerRect.width / containerRect.height;
-        const bufferAspect = effectiveBufferW / effectiveBufferH;
-
-        let displayW, displayH, offsetX, offsetY;
-        if (containerAspect > bufferAspect) {
-            displayW = containerRect.width;
-            displayH = containerRect.width / bufferAspect;
-            offsetX = 0;
-            offsetY = (containerRect.height - displayH) / 2;
-        } else {
-            displayH = containerRect.height;
-            displayW = containerRect.height * bufferAspect;
-            offsetX = (containerRect.width - displayW) / 2;
-            offsetY = 0;
-        }
-
-        const scaleX = displayW / effectiveBufferW;
-        const scaleY = displayH / effectiveBufferH;
-
-        // 3. Focal Length (MUST match Controller.js)
-        // Controller uses inputHeight / 2 (sensor's vertical dimension) as the baseline.
+        // The tracker uses 1280x720. Focal length is based on 720 (sensor height).
         const f = videoH / 2 / Math.tan((45.0 * Math.PI / 180) / 2);
 
-        // 4. Project marker center into camera space
+        // Project Center of the marker into camera space
         const tx = mVT[0][0] * (markerW / 2) + mVT[0][1] * (markerH / 2) + mVT[0][3];
         const ty = mVT[1][0] * (markerW / 2) + mVT[1][1] * (markerH / 2) + mVT[1][3];
         const tz = mVT[2][0] * (markerW / 2) + mVT[2][1] * (markerH / 2) + mVT[2][3];
 
-        // 5. Map Camera coordinates to Screen coordinates
-        let screenX, screenY;
+        let screenX, screenY, rotation, perspectiveScale;
+
         if (needsRotation) {
-            // Mapping Sensor coordinates to Rotated Screen coordinates
-            // Sensor +X -> Screen +Y
-            // Sensor +Y -> Screen -X (relative to logical center)
-            screenX = offsetX + (effectiveBufferW / 2 + (ty * f / tz)) * scaleX;
-            screenY = offsetY + (effectiveBufferH / 2 - (tx * f / tz)) * scaleY;
+            // PORTRAIT MOBILE:
+            // Browser rotates 1280 (W) -> vertical, 720 (H) -> horizontal
+            const scale = containerRect.height / videoW;
+            const displayW = videoH * scale;
+            const offsetX = (containerRect.width - displayW) / 2;
+
+            // Mapping: Buffer +X (Right) -> Screen +Y (Down), Buffer +Y (Down) -> Screen -X (Left)
+            screenX = offsetX + (displayW / 2 - (ty * f / tz) * scale);
+            screenY = (containerRect.height / 2 + (tx * f / tz) * scale);
+
+            rotation = Math.atan2(mVT[1][0], mVT[0][0]) - Math.PI / 2;
+            perspectiveScale = scale;
         } else {
-            screenX = offsetX + (effectiveBufferW / 2 + (tx * f / tz)) * scaleX;
-            screenY = offsetY + (effectiveBufferH / 2 + (ty * f / tz)) * scaleY;
+            // LANDSCAPE / LAPTOP:
+            const scale = containerRect.width / videoW;
+            const displayH = videoH * scale;
+            const offsetY = (containerRect.height - displayH) / 2;
+
+            screenX = (containerRect.width / 2 + (tx * f / tz) * scale);
+            screenY = offsetY + (displayH / 2 + (ty * f / tz) * scale);
+
+            rotation = Math.atan2(mVT[1][0], mVT[0][0]);
+            perspectiveScale = scale;
         }
 
-        // 6. Rotation: sync with CSS transform
-        //atan2 gives angle of world X-axis in camera space.
-        let rotation = Math.atan2(mVT[1][0], mVT[0][0]);
-        if (needsRotation) {
-            rotation -= Math.PI / 2; // Mapping Sensor frame to Portrait Screen frame
-        }
-
-        // 7. Scale calculation (Robust Method)
-        // Instead of detecting intrinsic width (unstable), we force a base CSS width 
-        // and calculate the scale to match the marker's projected screen width.
-        const BASE_CSS_WIDTH = 1000;
+        // Final Scale
         const matrixScale = Math.sqrt(mVT[0][0] ** 2 + mVT[1][0] ** 2);
-        const perspectiveScale = (f / tz) * scaleX;
-
-        // Target pixel width on screen = markerW * matrixScale * perspectiveScale
-        const targetScreenWidth = markerW * matrixScale * perspectiveScale;
-        const finalScale = (targetScreenWidth / BASE_CSS_WIDTH) * this.scaleMultiplier;
+        const finalScale = (f / tz) * perspectiveScale * matrixScale * this.scaleMultiplier;
 
         // Apply
-        this.overlay.style.width = `${BASE_CSS_WIDTH}px`;
+        this.overlay.style.width = `${markerW}px`;
         this.overlay.style.height = 'auto';
         this.overlay.style.position = 'absolute';
         this.overlay.style.transformOrigin = 'center center';
         this.overlay.style.left = '0';
         this.overlay.style.top = '0';
         this.overlay.style.transform = `
-      translate(${screenX}px, ${screenY}px)
-      translate(-50%, -50%)
-      scale(${finalScale})
-      rotate(${rotation}rad)
-    `;
+            translate(${screenX}px, ${screenY}px)
+            translate(-50%, -50%)
+            scale(${finalScale})
+            rotate(${rotation}rad)
+        `;
     }
 }
 
