@@ -41,8 +41,8 @@ class SimpleAR {
     }
 
     /**
-     * Initialize and start AR tracking
-     */
+   * Initialize and start AR tracking
+   */
     async start() {
         // 1. Create video element
         this._createVideo();
@@ -53,8 +53,9 @@ class SimpleAR {
         // 3. Initialize controller
         this._initController();
 
-        // 4. Load targets and start processing
-        await this.controller.addImageTargets(this.targetSrc);
+        // 4. Load targets (supports single URL or array of URLs)
+        const targets = Array.isArray(this.targetSrc) ? this.targetSrc : [this.targetSrc];
+        await this.controller.addImageTargets(targets);
         this.controller.processVideo(this.video);
 
         return this;

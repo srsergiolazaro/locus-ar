@@ -91,32 +91,49 @@ class Controller {
     }
   }
 
-  addImageTargets(fileURL) {
-    return new Promise(async (resolve) => {
-      const content = await fetch(fileURL);
-      const buffer = await content.arrayBuffer();
-      const result = this.addImageTargetsFromBuffer(buffer);
-      resolve(result);
-    });
+  /**
+   * Load image targets from one or multiple .mind files
+   * @param {string|string[]} fileURLs - Single URL or array of URLs to .mind files
+   * @returns {Promise<{dimensions, matchingDataList, trackingDataList}>}
+   */
+  async addImageTargets(fileURLs) {
+    const urls = Array.isArray(fileURLs) ? fileURLs : [fileURLs];
+
+    // Fetch all .mind files in parallel
+    const buffers = await Promise.all(
+      urls.map(async (url) => {
+        const response = await fetch(url);
+        return response.arrayBuffer();
+      })
+    );
+
+    // Combine all buffers into a single target list
+    return this.addImageTargetsFromBuffers(buffers);
   }
 
-  addImageTargetsFromBuffer(buffer) {
-    const compiler = new Compiler();
-    const dataList = compiler.importData(buffer);
+  /**
+   * Load image targets from multiple ArrayBuffers
+   * @param {ArrayBuffer[]} buffers - Array of .mind file buffers
+   */
+  addImageTargetsFromBuffers(buffers) {
+    const allTrackingData = [];
+    const allMatchingData = [];
+    const allDimensions = [];
 
-    const trackingDataList = [];
-    const matchingDataList = [];
-    const dimensions = [];
-    for (let i = 0; i < dataList.length; i++) {
-      const item = dataList[i];
-      matchingDataList.push(item.matchingData);
-      trackingDataList.push(item.trackingData);
-      dimensions.push([item.targetImage.width, item.targetImage.height]);
+    for (const buffer of buffers) {
+      const compiler = new Compiler();
+      const dataList = compiler.importData(buffer);
+
+      for (const item of dataList) {
+        allMatchingData.push(item.matchingData);
+        allTrackingData.push(item.trackingData);
+        allDimensions.push([item.targetImage.width, item.targetImage.height]);
+      }
     }
 
     this.tracker = new Tracker(
-      dimensions,
-      trackingDataList,
+      allDimensions,
+      allTrackingData,
       this.projectionTransform,
       this.inputWidth,
       this.inputHeight,
@@ -131,12 +148,20 @@ class Controller {
         inputHeight: this.inputHeight,
         projectionTransform: this.projectionTransform,
         debugMode: this.debugMode,
-        matchingDataList,
+        matchingDataList: allMatchingData,
       });
     }
 
-    this.markerDimensions = dimensions;
-    return { dimensions, matchingDataList, trackingDataList };
+    this.markerDimensions = allDimensions;
+    return { dimensions: allDimensions, matchingDataList: allMatchingData, trackingDataList: allTrackingData };
+  }
+
+  /**
+   * Load image targets from a single ArrayBuffer (backward compatible)
+   * @param {ArrayBuffer} buffer - Single .mind file buffer
+   */
+  addImageTargetsFromBuffer(buffer) {
+    return this.addImageTargetsFromBuffers([buffer]);
   }
 
   dispose() {

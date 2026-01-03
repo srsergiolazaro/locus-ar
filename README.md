@@ -134,7 +134,11 @@ const controller = new Controller({
   }
 });
 
+// Single target
 await controller.addImageTargets('./targets.mind');
+
+// OR multiple targets from different .mind files
+await controller.addImageTargets(['./target1.mind', './target2.mind', './target3.mind']);
 controller.processVideo(videoElement); // Starts the internal RAF loop
 ```
 
@@ -163,11 +167,11 @@ The **simplest way** to use AR—no Three.js, no A-Frame. Just overlay an image 
 import { SimpleAR } from '@srsergio/taptapp-ar';
 
 const ar = new SimpleAR({
-  container: document.getElementById('ar-container'),   // Where to render
-  targetSrc: './my-target.mind',                        // Your compiled .mind file
-  overlay: document.getElementById('my-overlay'),       // Element to position on target
-  onFound: () => console.log('Target detected! 🎯'),
-  onLost: () => console.log('Target lost 👋')
+  container: document.getElementById('ar-container'),
+  targetSrc: './my-target.mind',  // Single URL or array: ['./a.mind', './b.mind']
+  overlay: document.getElementById('my-overlay'),
+  onFound: ({ targetIndex }) => console.log(`Target ${targetIndex} detected! 🎯`),
+  onLost: ({ targetIndex }) => console.log(`Target ${targetIndex} lost 👋`)
 });
 
 await ar.start();
