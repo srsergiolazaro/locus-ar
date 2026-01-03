@@ -15,10 +15,11 @@ try {
   ControllerWorker = null;
 }
 
-const DEFAULT_FILTER_CUTOFF = 0.5; // Mayor cutoff para respuesta más rápida
-const DEFAULT_FILTER_BETA = 0.01;  // Mucho menor beta para reducir el "lag" y la tembladera
+const DEFAULT_FILTER_CUTOFF = 0.1; // Menor cutoff para filtrar más ruidos cuando está quieto
+const DEFAULT_FILTER_BETA = 0.01;  // Beta bajo para suavizar movimientos rápidos
 
-const DEFAULT_WARMUP_TOLERANCE = 5;
+const DEFAULT_WARMUP_TOLERANCE = 8; // Más frames de calentamiento para asegurar estabilidad inicial
+
 const DEFAULT_MISS_TOLERANCE = 5;
 
 class Controller {

@@ -187,24 +187,27 @@ class SimpleAR {
         const f = videoH / 2 / Math.tan((45.0 * Math.PI / 180) / 2);
 
         // Perspective projection to screen space
-        const screenX = offsetX + (videoW / 2 + (tx * f / -tz)) * scaleX;
-        const screenY = offsetY + (videoH / 2 - (ty * f / -tz)) * scaleY;
+        // The estimator returns positive Z for depth, so we divide by tz directly.
+        const screenX = offsetX + (videoW / 2 + (tx * f / tz)) * scaleX;
+        const screenY = offsetY + (videoH / 2 - (ty * f / tz)) * scaleY;
 
         // Use the first row of mVT to determine rotation and base scale component
-        // Since marker coordinates are in pixels, mVT[0][0] and mVT[0][1] are unitless scale factors
         const rotation = Math.atan2(mVT[1][0], mVT[0][0]);
         const matrixScale = Math.sqrt(mVT[0][0] ** 2 + mVT[1][0] ** 2);
 
-        // Perspective scale: how much larger/smaller the object is based on distance (tz)
-        // Correct scale should make a marker-width sized element cover the marker.
-        const perspectiveScale = (f / -tz) * scaleX;
+        // Perspective scale: 1 world pixel = (f/tz) screen pixels
+        const perspectiveScale = (f / tz) * scaleX;
 
-        // The overlay element has its own width in CSS pixels (e.g. 200px)
-        const overlayCSSWidth = parseFloat(this.overlay.style.width) || 200;
+        // Detect overlay intrinsic size (videoWidth for video, naturalWidth for images)
+        const intrinsicWidth = (this.overlay instanceof HTMLVideoElement)
+            ? this.overlay.videoWidth
+            : (this.overlay instanceof HTMLImageElement ? this.overlay.naturalWidth : 0);
 
-        // Final scale = (Target Width in Pixels on screen) / (Overlay CSS Width)
-        // matrixScale is usually ~1.0 if tracking is rigid
-        const finalScale = (matrixScale * markerW * perspectiveScale) / overlayCSSWidth;
+        // Final scale = (Target Width in Pixels on screen) / (Overlay Intrinsic Width)
+        // If intrinsicWidth is 0 (not loaded), we fallback to a safe 1.0 scale to avoid Infinity
+        const finalScale = intrinsicWidth > 0
+            ? (matrixScale * markerW * perspectiveScale) / intrinsicWidth
+            : 1.0;
 
         // Apply transform
         this.overlay.style.position = 'absolute';
@@ -218,6 +221,7 @@ class SimpleAR {
       rotate(${-rotation}rad)
     `;
     }
+
 }
 
 export { SimpleAR };

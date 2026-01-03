@@ -18,7 +18,8 @@ const PYRAMID_MIN_SIZE = 4; // Reducido de 8 a 4 para exprimir al máximo la res
 
 
 const NUM_BUCKETS_PER_DIMENSION = 8;
-const MAX_FEATURES_PER_BUCKET = 15; // Aumentado para mayor densidad de puntos tracking y estabilidad
+const MAX_FEATURES_PER_BUCKET = 12; // Ajustado para un equilibrio óptimo entre densidad y estabilidad
+
 
 const ORIENTATION_NUM_BINS = 36;
 const FREAK_EXPANSION_FACTOR = 7.0;
