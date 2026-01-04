@@ -12,7 +12,12 @@ Inspirado en las bases de datos analíticas de alto rendimiento, Taptapp-AR impl
 - **Taptapp-AR (Column-based):**
   - `xCoordinates: Uint16Array`
   - `yCoordinates: Uint16Array`
-  - `descriptors: Uint32Array`
+  - `descriptors: Uint32Array` (2 ints por punto = 64-bit LSH)
+
+### 3. Single-Scale Tracking (Poda de Pirámide)
+Tradicionalmente se trackea en múltiples escalas (256px y 128px) para asegurar robustez al alejar la cámara.
+- **Innovación:** El análisis de *Robustness Stress Test* demostró que con un buen detector LSH, la escala de 128px es suficiente.
+- **Resultado:** Eliminamos el 50% de los datos de tracking sobrantes, reduciendo el archivo sin sacrificar precisión.
 
 ## ¿Por qué es una innovación disruptiva?
 

@@ -9,21 +9,21 @@
  * which fits the Moonshot goal of an ultra-lightweight bundle.
  */
 
-// For 128-bit LSH, we use a uniform sampling across the 672-bit descriptor.
-const SAMPLING_INDICES = new Int32Array(128);
-for (let i = 0; i < 128; i++) {
-    SAMPLING_INDICES[i] = Math.floor(i * (672 / 128));
+// For 64-bit LSH, we use a uniform sampling across the 672-bit descriptor.
+const SAMPLING_INDICES = new Int32Array(64);
+for (let i = 0; i < 64; i++) {
+    SAMPLING_INDICES[i] = Math.floor(i * (672 / 64));
 }
 
 /**
- * Converts an 84-byte FREAK descriptor into a Uint32Array of 4 elements (128 bits).
+ * Converts an 84-byte FREAK descriptor into a Uint32Array of 2 elements (64 bits).
  * @param {Uint8Array} descriptor - The 84-byte FREAK descriptor.
- * @returns {Uint32Array} Array of four 32-bit integers.
+ * @returns {Uint32Array} Array of two 32-bit integers.
  */
-export function binarizeFREAK128(descriptor) {
-    const result = new Uint32Array(4);
+export function binarizeFREAK64(descriptor) {
+    const result = new Uint32Array(2);
 
-    for (let i = 0; i < 128; i++) {
+    for (let i = 0; i < 64; i++) {
         const bitIndex = SAMPLING_INDICES[i];
         const byteIdx = bitIndex >> 3;
         const bitIdx = 7 - (bitIndex & 7);
@@ -39,4 +39,5 @@ export function binarizeFREAK128(descriptor) {
 }
 
 // Backward compatibility or for other uses
-export const binarizeFREAK32 = binarizeFREAK128;
+export const binarizeFREAK128 = binarizeFREAK64;
+export const binarizeFREAK32 = binarizeFREAK64;

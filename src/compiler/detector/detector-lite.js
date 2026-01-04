@@ -44,7 +44,7 @@ export class DetectorLite {
         this.width = width;
         this.height = height;
         this.useGPU = options.useGPU !== undefined ? options.useGPU : globalUseGPU;
-        // Protocol V5.1 (Moonshot): 128-bit LSH is the standard descriptor format
+        // Protocol V6 (Moonshot): 64-bit LSH is the standard descriptor format
         this.useLSH = options.useLSH !== undefined ? options.useLSH : true;
 
         let numOctaves = 0;

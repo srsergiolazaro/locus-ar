@@ -1,5 +1,6 @@
 import { Controller } from "./controller.js";
 import { OneEuroFilter } from "../libs/one-euro-filter.js";
+import { projectToScreen } from "./utils/projection.js";
 
 /**
  * 🍦 SimpleAR - Dead-simple vanilla AR for image overlays
@@ -202,8 +203,8 @@ class SimpleAR {
 
         // 3. Project 3 points to determine position, scale, and rotation
         // Points in Marker Space: Center, Right-Edge, and Down-Edge
-        const pMid = this._projectToScreen(markerW / 2, markerH / 2, 0, mVT, proj, videoW, videoH, containerRect, needsRotation);
-        const pRight = this._projectToScreen(markerW / 2 + 100, markerH / 2, 0, mVT, proj, videoW, videoH, containerRect, needsRotation);
+        const pMid = projectToScreen(markerW / 2, markerH / 2, 0, mVT, proj, videoW, videoH, containerRect, needsRotation);
+        const pRight = projectToScreen(markerW / 2 + 100, markerH / 2, 0, mVT, proj, videoW, videoH, containerRect, needsRotation);
 
         // 4. Calculate Screen Position
         const screenX = pMid.sx;
@@ -252,41 +253,7 @@ class SimpleAR {
         `;
     }
 
-    /**
-     * Projects a 3D marker-space point all the way to 2D screen CSS pixels
-     */
-    _projectToScreen(x, y, z, mVT, proj, videoW, videoH, containerRect, needsRotation) {
-        // Marker -> Camera Space
-        const tx = mVT[0][0] * x + mVT[0][1] * y + mVT[0][2] * z + mVT[0][3];
-        const ty = mVT[1][0] * x + mVT[1][1] * y + mVT[1][2] * z + mVT[1][3];
-        const tz = mVT[2][0] * x + mVT[2][1] * y + mVT[2][2] * z + mVT[2][3];
-
-        // Camera -> Buffer Pixels (e.g. 1280x720)
-        const bx = (proj[0][0] * tx / tz) + proj[0][2];
-        const by = (proj[1][1] * ty / tz) + proj[1][2];
-
-        // Buffer -> Screen CSS Pixels
-        const vW = needsRotation ? videoH : videoW;
-        const vH = needsRotation ? videoW : videoH;
-        const perspectiveScale = Math.max(containerRect.width / vW, containerRect.height / vH);
-
-        const displayW = vW * perspectiveScale;
-        const displayH = vH * perspectiveScale;
-        const offsetX = (containerRect.width - displayW) / 2;
-        const offsetY = (containerRect.height - displayH) / 2;
-
-        let sx, sy;
-        if (needsRotation) {
-            // Mapping: Camera +X (Right) -> Screen +Y (Down), Camera +Y (Down) -> Screen -X (Left)
-            sx = offsetX + (displayW / 2) - (by - proj[1][2]) * perspectiveScale;
-            sy = offsetY + (displayH / 2) + (bx - proj[0][2]) * perspectiveScale;
-        } else {
-            sx = offsetX + (displayW / 2) + (bx - proj[0][2]) * perspectiveScale;
-            sy = offsetY + (displayH / 2) + (by - proj[1][2]) * perspectiveScale;
-        }
-
-        return { sx, sy };
-    }
+    // Unified projection logic moved to ./utils/projection.js
 }
 
 export { SimpleAR };

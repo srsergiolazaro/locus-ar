@@ -1,0 +1,128 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import { Controller } from '../src/compiler/controller.js';
+import { OfflineCompiler } from '../src/compiler/offline-compiler.js';
+import { Jimp } from 'jimp';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const ASSETS_DIR = path.join(__dirname, 'assets');
+const ROBUSTNESS_DIR = path.join(__dirname, 'robustness-images');
+const TEST_IMAGE_PATH = path.join(ASSETS_DIR, 'test-image.png');
+
+const CONFIG = {
+    MIN_INLIERS_PASS: 30, // Reducido un poco para ser justo con resoluciones pequeñas
+    MIN_INLIERS_LOW: 15,
+};
+
+describe('Tracker Robustness Evaluation (via Controller)', () => {
+    let mindBuffer;
+
+    beforeAll(async () => {
+        console.log('🔨 Compiling reference target...');
+        const baseImage = await Jimp.read(TEST_IMAGE_PATH);
+        const compiler = new OfflineCompiler();
+        await compiler.compileImageTargets([{
+            width: baseImage.bitmap.width,
+            height: baseImage.bitmap.height,
+            data: baseImage.bitmap.data
+        }], () => { });
+
+        mindBuffer = compiler.exportData();
+        console.log('✅ Target compiled and ready.');
+    }, 60000);
+
+    // Scan all resolutions
+    if (!fs.existsSync(ROBUSTNESS_DIR)) {
+        it('should have robustness images generated', () => {
+            throw new Error('Robustness directory not found. Run node tests/generate-robustness-images.js first.');
+        });
+        return;
+    }
+
+    const resolutions = fs.readdirSync(ROBUSTNESS_DIR).filter(d =>
+        fs.statSync(path.join(ROBUSTNESS_DIR, d)).isDirectory() && d !== 'custom'
+    );
+
+    resolutions.forEach(res => {
+        describe(`Resolution: ${res}`, () => {
+            const resPath = path.join(ROBUSTNESS_DIR, res);
+            const testImages = fs.readdirSync(resPath).filter(f => f.endsWith('.png'));
+
+            testImages.forEach(filename => {
+                it(`should detect and match ${filename}`, async () => {
+                    const imgPath = path.join(resPath, filename);
+                    const image = await Jimp.read(imgPath);
+                    const { width, height } = image.bitmap;
+
+                    // 1. Setup Controller for this specific resolution
+                    const controller = new Controller({
+                        inputWidth: width,
+                        inputHeight: height,
+                        debugMode: true // To get inliers info
+                    });
+
+                    // 2. Load compiled target
+                    controller.addImageTargetsFromBuffers([mindBuffer]);
+
+                    // 3. Process image (Detect + Match)
+                    // We simulate what Controller does in processVideo but for a single frame
+                    const inputData = new Uint8Array(width * height);
+                    const rgbaData = image.bitmap.data;
+                    image.greyscale();
+                    for (let i = 0; i < width * height; i++) {
+                        inputData[i] = rgbaData[i * 4];
+                    }
+
+                    // Perform detection
+                    const { featurePoints } = await controller.detect(inputData);
+
+                    // Perform matching (targetIndex 0 since we only compiled one)
+                    const matchResult = await controller.match(featurePoints, 0);
+
+                    const inliers = matchResult.debugExtra?.frames[0]?.matches?.length || 0;
+                    const status = inliers >= CONFIG.MIN_INLIERS_PASS ? '✅ PASS' :
+                        (inliers >= CONFIG.MIN_INLIERS_LOW ? '⚠️ LOW' : '❌ FAIL');
+
+                    console.log(`[${res}] ${filename.padEnd(20)} | Inliers: ${String(inliers).padStart(4)} | ${status}`);
+
+                    expect(matchResult.targetIndex).toBe(0);
+                    expect(inliers).toBeGreaterThanOrEqual(10);
+                }, 20000);
+            });
+        });
+    });
+
+    // Special case for custom images
+    const customPath = path.join(ROBUSTNESS_DIR, 'custom');
+    if (fs.existsSync(customPath)) {
+        const customFiles = fs.readdirSync(customPath).filter(f => f.endsWith('.png'));
+        if (customFiles.length > 0) {
+            describe('Custom User Images', () => {
+                customFiles.forEach(filename => {
+                    it(`testing custom ${filename}`, async () => {
+                        const imgPath = path.join(customPath, filename);
+                        const image = await Jimp.read(imgPath);
+                        const { width, height } = image.bitmap;
+
+                        const controller = new Controller({ inputWidth: width, inputHeight: height });
+                        controller.addImageTargetsFromBuffers([mindBuffer]);
+
+                        const inputData = new Uint8Array(width * height);
+                        image.greyscale();
+                        for (let i = 0; i < width * height; i++) inputData[i] = image.bitmap.data[i * 4];
+
+                        const { featurePoints } = await controller.detect(inputData);
+                        const matchResult = await controller.match(featurePoints, 0);
+
+                        console.log(`[custom] ${filename.padEnd(20)} | Matched: ${matchResult.targetIndex !== -1}`);
+                        expect(matchResult.targetIndex).toBe(0);
+                    });
+                });
+            });
+        }
+    }
+});

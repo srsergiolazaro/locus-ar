@@ -18,7 +18,7 @@ const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) =>
   const qlen = querypoints.length;
   const kmax = keyframe.max;
   const kmin = keyframe.min;
-  const descSize = 4; // Protocol V5.1: 128-bit LSH (4 x 32-bit)
+  const descSize = 2; // Protocol V6: 64-bit LSH (2 x 32-bit)
 
   for (let j = 0; j < qlen; j++) {
     const querypoint = querypoints[j];
@@ -202,7 +202,7 @@ const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) =>
 };
 
 const _query = ({ node, descriptors, querypoint, queue, keypointIndexes, numPop }) => {
-  const descSize = 4;
+  const descSize = 2;
   const isLeaf = node[0] === 1;
   const childrenOrIndices = node[2];
 

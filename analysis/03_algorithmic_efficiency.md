@@ -15,7 +15,7 @@ Implementamos la pirámide Gaussiana y la detección DoG (Difference of Gaussian
 
 ### 2. LSH (Locality Sensitive Hashing)
 En el matching original, comparar dos descriptores requiere calcular la distancia entre arrays de 512 bits. Esto es costoso.
-- **Innovación:** Usamos LSH para proyectar esos 512 bits a una "huella digital" de **128 bits**. 
+- **Innovación:** Usamos LSH para proyectar esos 512 bits a una "huella digital" de **64 bits**. 
 - **Comparación por XOR:** El matching ahora se reduce a una operación `XOR` y un conteo de bits (`popcount`). 
 - **Resultado:** El motor puede comparar miles de puntos en microsegundos, usando instrucciones nativas del procesador que antes eran imposibles de aprovechar con descriptores crudos.
 

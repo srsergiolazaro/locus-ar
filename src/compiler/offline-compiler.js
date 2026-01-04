@@ -27,7 +27,7 @@ const isNode = typeof process !== "undefined" &&
   process.versions != null &&
   process.versions.node != null;
 
-const CURRENT_VERSION = 5; // Protocol v5: Moonshot - LSH 64-bit
+const CURRENT_VERSION = 6; // Protocol v6: Moonshot - LSH 64-bit
 
 /**
  * Compilador offline optimizado sin TensorFlow
@@ -37,9 +37,9 @@ export class OfflineCompiler {
     this.data = null;
     this.workerPool = null;
 
-    // Workers solo en Node.js (no en browser)
+    // Workers only in Node.js (no en browser)
     if (isNode) {
-      this._initNodeWorkers();
+      // Lazy init workers only when needed
     } else {
       console.log("🌐 OfflineCompiler: Browser mode (no workers)");
     }
@@ -68,7 +68,6 @@ export class OfflineCompiler {
       const numWorkers = Math.min(os.cpus().length, 4);
 
       this.workerPool = new WorkerPool(workerPath, numWorkers, Worker);
-      console.log(`🚀 OfflineCompiler: Node.js mode with ${numWorkers} workers`);
     } catch (e) {
       console.log("⚡ OfflineCompiler: Running without workers (initialization failed)", e);
     }
@@ -142,6 +141,7 @@ export class OfflineCompiler {
     let currentPercent = 0;
 
     // Use workers if available
+    if (isNode) await this._initNodeWorkers();
     if (this.workerPool) {
       const progressMap = new Float32Array(targetImages.length);
 
@@ -260,7 +260,7 @@ export class OfflineCompiler {
     const dataList = this.data.map((item) => {
       const matchingData = item.matchingData.map((kf) => this._packKeyframe(kf));
 
-      const trackingData = item.trackingData.map((td) => {
+      const trackingData = [item.trackingData[0]].map((td) => {
         const count = td.points.length;
         // Step 1: Packed Coords - Normalize width/height to 16-bit
         const px = new Uint16Array(count);
@@ -347,8 +347,8 @@ export class OfflineCompiler {
     // Step 1.2: Scale Indexing - Uint8
     const scale = new Uint8Array(count);
 
-    // Step 3: LSH 128-bit Descriptors - Uint32Array (4 elements per point)
-    const descriptors = new Uint32Array(count * 4);
+    // Step 3: LSH 64-bit Descriptors - Uint32Array (2 elements per point)
+    const descriptors = new Uint32Array(count * 2);
 
     for (let i = 0; i < count; i++) {
       x[i] = Math.round((points[i].x / width) * 65535);
@@ -356,11 +356,9 @@ export class OfflineCompiler {
       angle[i] = Math.round((points[i].angle / Math.PI) * 32767);
       scale[i] = Math.round(Math.log2(points[i].scale || 1));
 
-      if (points[i].descriptors && points[i].descriptors.length === 4) {
-        descriptors[i * 4] = points[i].descriptors[0];
-        descriptors[(i * 4) + 1] = points[i].descriptors[1];
-        descriptors[(i * 4) + 2] = points[i].descriptors[2];
-        descriptors[(i * 4) + 3] = points[i].descriptors[3];
+      if (points[i].descriptors && points[i].descriptors.length >= 2) {
+        descriptors[i * 2] = points[i].descriptors[0];
+        descriptors[(i * 2) + 1] = points[i].descriptors[1];
       }
     }
 
@@ -385,10 +383,11 @@ export class OfflineCompiler {
     const content = msgpack.decode(new Uint8Array(buffer));
 
     const version = content.v || 0;
-    if (version !== CURRENT_VERSION) {
-      console.error(`Incompatible .mind version: ${version}. This engine only supports Protocol V${CURRENT_VERSION}.`);
+    if (version !== CURRENT_VERSION && version !== 5) {
+      console.error(`Incompatible .mind version: ${version}. This engine only supports Protocol V5/V6.`);
       return [];
     }
+    const descSize = version >= 6 ? 2 : 4;
 
     // Restore TypedArrays from Uint8Arrays returned by msgpack
     const dataList = content.dataList;
@@ -487,7 +486,7 @@ export class OfflineCompiler {
   _decolumnarize(col, width, height) {
     const points = [];
     const count = col.x.length;
-    const descSize = 4;
+    const descSize = col.d.length / count;
 
     for (let i = 0; i < count; i++) {
       points.push({

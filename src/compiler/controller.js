@@ -378,10 +378,10 @@ class Controller {
   }
 
   async match(featurePoints, targetIndex) {
-    const { targetIndex: matchedTargetIndex, modelViewTransform, debugExtra } = await this._workerMatch(featurePoints, [
+    const { targetIndex: matchedTargetIndex, modelViewTransform, screenCoords, worldCoords, debugExtra } = await this._workerMatch(featurePoints, [
       targetIndex,
     ]);
-    return { targetIndex: matchedTargetIndex, modelViewTransform, debugExtra };
+    return { targetIndex: matchedTargetIndex, modelViewTransform, screenCoords, worldCoords, debugExtra };
   }
 
   async track(input, modelViewTransform, targetIndex) {
@@ -408,6 +408,8 @@ class Controller {
         resolve({
           targetIndex: data.targetIndex,
           modelViewTransform: data.modelViewTransform,
+          screenCoords: data.screenCoords,
+          worldCoords: data.worldCoords,
           debugExtra: data.debugExtra,
         });
       };
@@ -426,6 +428,8 @@ class Controller {
 
     let matchedTargetIndex = -1;
     let matchedModelViewTransform = null;
+    let matchedScreenCoords = null;
+    let matchedWorldCoords = null;
     let matchedDebugExtra = null;
 
     for (let i = 0; i < targetIndexes.length; i++) {
@@ -443,6 +447,8 @@ class Controller {
         if (modelViewTransform) {
           matchedTargetIndex = matchingIndex;
           matchedModelViewTransform = modelViewTransform;
+          matchedScreenCoords = screenCoords;
+          matchedWorldCoords = worldCoords;
         }
         break;
       }
@@ -451,6 +457,8 @@ class Controller {
     return {
       targetIndex: matchedTargetIndex,
       modelViewTransform: matchedModelViewTransform,
+      screenCoords: matchedScreenCoords,
+      worldCoords: matchedWorldCoords,
       debugExtra: matchedDebugExtra,
     };
   }
