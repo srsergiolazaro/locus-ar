@@ -39,6 +39,7 @@ class SimpleAR {
         onLost = null,
         onUpdate = null,
         cameraConfig = { facingMode: 'environment', width: 1280, height: 720 },
+        debug = false,
     }) {
         this.container = container;
         this.targetSrc = targetSrc;
@@ -48,6 +49,13 @@ class SimpleAR {
         this.onLost = onLost;
         this.onUpdateCallback = onUpdate;
         this.cameraConfig = cameraConfig;
+        this.debug = debug;
+        if (this.debug) window.AR_DEBUG = true;
+
+        this.lastTime = performance.now();
+        this.frameCount = 0;
+        this.fps = 0;
+        this.debugPanel = null;
 
         this.video = null;
         this.controller = null;
@@ -68,6 +76,8 @@ class SimpleAR {
 
         // 3. Initialize controller
         this._initController();
+
+        if (this.debug) this._createDebugPanel();
 
         // 4. Load targets (supports single URL or array of URLs)
         const targets = Array.isArray(this.targetSrc) ? this.targetSrc : [this.targetSrc];
@@ -134,12 +144,23 @@ class SimpleAR {
         this.controller = new Controller({
             inputWidth: this.video.videoWidth,
             inputHeight: this.video.videoHeight,
+            debugMode: this.debug,
             onUpdate: (data) => this._handleUpdate(data)
         });
     }
 
     _handleUpdate(data) {
         if (data.type !== 'updateMatrix') return;
+
+        // FPS Calculation
+        const now = performance.now();
+        this.frameCount++;
+        if (now - this.lastTime >= 1000) {
+            this.fps = Math.round((this.frameCount * 1000) / (now - this.lastTime));
+            this.frameCount = 0;
+            this.lastTime = now;
+            if (this.debug) this._updateDebugPanel(this.isTracking);
+        }
 
         const { targetIndex, worldMatrix, modelViewTransform } = data;
 
@@ -198,62 +219,112 @@ class SimpleAR {
         const isVideoLandscape = videoW > videoH;
         const needsRotation = isPortrait && isVideoLandscape;
 
-        // 2. Get intrinsic projection from controller
+        // 3. Get intrinsic projection from controller
         const proj = this.controller.projectionTransform;
 
-        // 3. Project 3 points to determine position, scale, and rotation
-        // Points in Marker Space: Center, Right-Edge, and Down-Edge
-        const pMid = projectToScreen(markerW / 2, markerH / 2, 0, mVT, proj, videoW, videoH, containerRect, needsRotation);
-        const pRight = projectToScreen(markerW / 2 + 100, markerH / 2, 0, mVT, proj, videoW, videoH, containerRect, needsRotation);
+        // 4. Position calculation via matrix3d (Support for 3D tilt/Z-rotation)
+        // We convert the OpenGL World Matrix to a CSS matrix3d.
+        // The OpenGL matrix is column-major. CSS matrix3d is also column-major.
+        const m = this.controller.getWorldMatrix(mVT, targetIndex);
 
-        // 4. Calculate Screen Position
+        // Map OpenGL coords to Screen Pixels using the projection logic
+        const vW = needsRotation ? videoH : videoW;
+        const vH = needsRotation ? videoW : videoH;
+        const perspectiveScale = Math.max(containerRect.width / vW, containerRect.height / vH);
+        const displayW = vW * perspectiveScale;
+        const displayH = vH * perspectiveScale;
+        const offsetX = (containerRect.width - displayW) / 2;
+        const offsetY = (containerRect.height - displayH) / 2;
+
+        // Adjust for centered marker and scaleMultiplier
+        const s = finalScale; // We still need the base scale factor for the pixel-to-marker mapping
+        // However, a cleaner way is to use the world matrix directly and map it.
+
+        // Actually, the simpler way to do 3D in CSS while keeping my projection logic is:
+        // Project the 4 corners and find the homography, OR
+        // Use the OpenGL matrix directly with a perspective mapping.
+
+        // Let's use the points projection to maintain the "needsRotation" logic compatibility
+        const pMid = projectToScreen(markerW / 2, markerH / 2, 0, mVT, proj, videoW, videoH, containerRect, needsRotation);
+        const pUL = projectToScreen(0, 0, 0, mVT, proj, videoW, videoH, containerRect, needsRotation);
+        const pUR = projectToScreen(markerW, 0, 0, mVT, proj, videoW, videoH, containerRect, needsRotation);
+        const pLL = projectToScreen(0, markerH, 0, mVT, proj, videoW, videoH, containerRect, needsRotation);
+
+        // Using these points we can calculate the 3D rotation and perspective
+        const dx = pUR.sx - pUL.sx;
+        const dy = pUR.sy - pUL.sy;
+        const dz = pUR.sx - pLL.sx; // Not really Z but used for slant
+
+        const angle = Math.atan2(dy, dx);
+        const scaleX = Math.sqrt(dx * dx + dy * dy) / markerW;
+        const scaleY = Math.sqrt((pLL.sx - pUL.sx) ** 2 + (pLL.sy - pUL.sy) ** 2) / markerH;
+
+        // For true 3D tilt, we'll use the projection of the axes
         const screenX = pMid.sx;
         const screenY = pMid.sy;
 
-        // 5. Calculate Rotation and Scale from the projected X-axis vector
-        const dx = pRight.sx - pMid.sx;
-        const dy = pRight.sy - pMid.sy;
+        // Final Transform applying 3D perspective via matrix3d derived from projected points
+        // NOTE: For full 3D we'd need a homography solver, but for "tilt" we can use the 
+        // original modelViewTransform if we convert it carefully.
 
-        const rotation = Math.atan2(dy, dx);
-        const pixelDistance100 = Math.sqrt(dx * dx + dy * dy);
+        const openGLWorldMatrix = this.controller.getWorldMatrix(mVT, targetIndex);
+        // We need to apply the same scaling and offsets as projectToScreen to the matrix
 
-        // Since we projected 100 units, the scale for the whole markerW is:
-        const finalScale = (pixelDistance100 / 100) * this.scaleMultiplier;
-
-        // DEBUG LOGS
-        if (window.AR_DEBUG) {
-            console.log('--- AR POSITION DEBUG (Point Projection) ---');
-            console.log('Container:', containerRect.width.toFixed(0), 'x', containerRect.height.toFixed(0));
-            console.log('Video:', videoW, 'x', videoH, 'needsRotation:', needsRotation);
-            console.log('Screen Pos:', screenX.toFixed(1), screenY.toFixed(1));
-            console.log('Rotated Angle:', (rotation * 180 / Math.PI).toFixed(1), 'deg');
-            console.log('Final Scale:', finalScale.toFixed(4));
-        }
-
-        // Apply styles to prevent CSS interference (like max-width: 100%)
         this.overlay.style.maxWidth = 'none';
-        this.overlay.style.maxHeight = 'none';
         this.overlay.style.width = `${markerW}px`;
-        this.overlay.style.height = 'auto'; // Maintain aspect ratio if user has a custom overlay
+        this.overlay.style.height = `${markerH}px`;
         this.overlay.style.position = 'absolute';
-        this.overlay.style.transformOrigin = 'center center';
-        this.overlay.style.display = 'block';
-        this.overlay.style.margin = '0';
+        this.overlay.style.transformOrigin = '0 0'; // Top-left based for simpler matrix mapping
         this.overlay.style.left = '0';
         this.overlay.style.top = '0';
+        this.overlay.style.display = 'block';
 
-        // Apply final transform
-        // We use translate to move the center of the elements to 0,0 
-        // Then apply our calculated screen position
+        // Approximate 3D tilt using the projected corners to calculate a skew/scale/rotate combo
+        // This is more robust than a raw matrix3d if the projection isn't a perfect pinhole
         this.overlay.style.transform = `
-            translate(${screenX}px, ${screenY}px)
-            translate(-50%, -50%)
-            rotate(${rotation}rad)
-            scale(${finalScale})
+            translate(${pUL.sx}px, ${pUL.sy}px)
+            matrix(${(pUR.sx - pUL.sx) / markerW}, ${(pUR.sy - pUL.sy) / markerW}, 
+                   ${(pLL.sx - pUL.sx) / markerH}, ${(pLL.sy - pUL.sy) / markerH}, 
+                   0, 0)
+            scale(${this.scaleMultiplier})
         `;
     }
 
     // Unified projection logic moved to ./utils/projection.js
+
+    _createDebugPanel() {
+        this.debugPanel = document.createElement('div');
+        this.debugPanel.style.cssText = `
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #0f0;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 8px;
+            border-radius: 4px;
+            z-index: 99999;
+            pointer-events: none;
+            line-height: 1.5;
+        `;
+        this.container.appendChild(this.debugPanel);
+    }
+
+    _updateDebugPanel(isTracking) {
+        if (!this.debugPanel) return;
+        const memory = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1024 / 1024) : '?';
+        const color = isTracking ? '#0f0' : '#f00';
+        const status = isTracking ? 'TRACKING' : 'SEARCHING';
+
+        this.debugPanel.innerHTML = `
+            <div>HEAD-UP DISPLAY</div>
+            <div>----------------</div>
+            <div>FPS:    ${this.fps}</div>
+            <div>STATUS: <span style="color:${color}">${status}</span></div>
+            <div>MEM:    ${memory} MB</div>
+        `;
+    }
 }
 
 export { SimpleAR };

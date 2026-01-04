@@ -20,7 +20,7 @@ const DEFAULT_FILTER_BETA = 0.01;  // Beta bajo para suavizar movimientos rápid
 
 const DEFAULT_WARMUP_TOLERANCE = 8; // Más frames de calentamiento para asegurar estabilidad inicial
 
-const DEFAULT_MISS_TOLERANCE = 5;
+const DEFAULT_MISS_TOLERANCE = 2; // Reducido para que el objeto desaparezca más rápido tras pérdida
 
 class Controller {
   constructor({
@@ -231,7 +231,7 @@ class Controller {
       lastModelViewTransform,
       targetIndex,
     );
-    if (worldCoords.length < 4) return null;
+    if (worldCoords.length < 6) return null; // Umbral de puntos mínimos para mantener el seguimiento
     const modelViewTransform = await this._workerTrackUpdate(lastModelViewTransform, {
       worldCoords,
       screenCoords,
