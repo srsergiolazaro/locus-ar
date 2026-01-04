@@ -52,7 +52,7 @@ parentPort.on('message', async (msg) => {
             const keyframes = [];
             for (let i = 0; i < imageList.length; i++) {
                 const image = imageList[i];
-                const detector = new DetectorLite(image.width, image.height);
+                const detector = new DetectorLite(image.width, image.height, { useLSH: true });
 
                 // Detectar features usando JS puro (sin TensorFlow)
                 const { featurePoints: ps } = detector.detect(image.data);

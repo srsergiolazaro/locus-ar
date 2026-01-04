@@ -12,6 +12,7 @@
 
 import { FREAKPOINTS } from "./freak.js";
 import { gpuCompute } from "../utils/gpu-compute.js";
+import { binarizeFREAK32 } from "../utils/lsh-binarizer.js";
 
 const PYRAMID_MIN_SIZE = 4; // Reducido de 8 a 4 para exprimir al máximo la resolución
 // PYRAMID_MAX_OCTAVE ya no es necesario, el límite lo da PYRAMID_MIN_SIZE
@@ -43,6 +44,8 @@ export class DetectorLite {
         this.width = width;
         this.height = height;
         this.useGPU = options.useGPU !== undefined ? options.useGPU : globalUseGPU;
+        // Protocol V5: LSH is enabled by default
+        this.useLSH = options.useLSH !== undefined ? options.useLSH : true;
 
         let numOctaves = 0;
         let w = width, h = height;
@@ -99,7 +102,7 @@ export class DetectorLite {
             y: ext.y * Math.pow(2, ext.octave) + Math.pow(2, ext.octave - 1) - 0.5,
             scale: Math.pow(2, ext.octave),
             angle: ext.angle || 0,
-            descriptors: ext.descriptors || []
+            descriptors: (this.useLSH && ext.lsh) ? ext.lsh : (ext.descriptors || [])
         }));
 
         return { featurePoints };
@@ -493,6 +496,9 @@ export class DetectorLite {
                         bitCount = 0;
                     }
                 }
+            }
+            if (this.useLSH) {
+                ext.lsh = binarizeFREAK32(descriptor);
             }
             ext.descriptors = descriptor;
         }

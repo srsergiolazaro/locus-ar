@@ -18,6 +18,7 @@ const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) =>
   const qlen = querypoints.length;
   const kmax = keyframe.max;
   const kmin = keyframe.min;
+  const descSize = (kmax && kmax.d && kmax.d.length > 0) ? (kmax.d instanceof Uint32Array ? 4 : 84) : 84;
 
   for (let j = 0; j < qlen; j++) {
     const querypoint = querypoints[j];
@@ -48,8 +49,8 @@ const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) =>
     for (let k = 0; k < keypointIndexes.length; k++) {
       const idx = keypointIndexes[k];
 
-      // Use offsets to avoid subarray allocation
-      const d = hammingCompute({ v1: cDesc, v1Offset: idx * 84, v2: qDesc });
+      // Use offsets based on detected descriptor size
+      const d = hammingCompute({ v1: cDesc, v1Offset: idx * descSize, v2: qDesc });
 
       if (d < bestD1) {
         bestD2 = bestD1;
@@ -60,19 +61,18 @@ const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) =>
       }
     }
 
-    if (
-      bestIndex !== -1 &&
-      (bestD2 === Number.MAX_SAFE_INTEGER || (bestD1 / bestD2) < HAMMING_THRESHOLD)
-    ) {
-      matches.push({
-        querypoint,
-        keypoint: {
-          x: col.x[bestIndex],
-          y: col.y[bestIndex],
-          angle: col.a[bestIndex],
-          scale: col.s ? col.s[bestIndex] : keyframe.s
-        }
-      });
+    if (bestIndex !== -1) {
+      if (bestD2 === Number.MAX_SAFE_INTEGER || (bestD1 / bestD2) < HAMMING_THRESHOLD) {
+        matches.push({
+          querypoint,
+          keypoint: {
+            x: col.x[bestIndex],
+            y: col.y[bestIndex],
+            angle: col.a[bestIndex],
+            scale: col.s ? col.s[bestIndex] : keyframe.s
+          }
+        });
+      }
     }
   }
 
@@ -94,7 +94,9 @@ const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) =>
     keyframe: { width: keyframe.w, height: keyframe.h },
   });
 
-  if (H === null) return { debugExtra };
+  if (H === null) {
+    return { debugExtra };
+  }
 
   const inlierMatches = _findInlierMatches({
     H,
@@ -141,7 +143,7 @@ const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) =>
 
       if (d2 > dThreshold2) continue;
 
-      const d = hammingCompute({ v1: cd, v1Offset: k * 84, v2: qDesc });
+      const d = hammingCompute({ v1: cd, v1Offset: k * descSize, v2: qDesc });
 
       if (d < bestD1) {
         bestD2 = bestD1;
@@ -200,6 +202,7 @@ const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) =>
 };
 
 const _query = ({ node, descriptors, querypoint, queue, keypointIndexes, numPop }) => {
+  const descSize = descriptors instanceof Uint32Array ? 4 : 84;
   const isLeaf = node[0] === 1;
   const childrenOrIndices = node[2];
 
@@ -221,7 +224,7 @@ const _query = ({ node, descriptors, querypoint, queue, keypointIndexes, numPop 
 
     const d = hammingCompute({
       v1: descriptors,
-      v1Offset: cIdx * 84,
+      v1Offset: cIdx * descSize,
       v2: qDesc,
     });
     distances[i] = d;

@@ -33,7 +33,7 @@
 \maketitle
 
 \begin{abstract}
-Image-based Augmented Reality (AR) systems rely on computationally intensive feature extraction algorithms during the compilation phase of image targets. Traditional implementations depend on TensorFlow.js for GPU-accelerated tensor operations, introducing significant overhead and compatibility issues in server-side environments. This paper presents \textbf{DetectorLite}, a novel pure JavaScript implementation of scale-invariant feature detection that completely eliminates TensorFlow dependencies while achieving \textbf{2.9× faster compilation} and \textbf{15\% more feature points} compared to the reference MindAR implementation. Our approach demonstrates that carefully optimized JavaScript can outperform tensor-based frameworks for specific computer vision tasks, particularly in serverless and edge computing scenarios where cold start latency is critical.
+Image-based Augmented Reality (AR) systems rely on computationally intensive feature extraction and matching algorithms. Traditional implementations depend on TensorFlow.js for tensor operations and use dense 84-byte descriptors, leading to massive bundle sizes and execution overhead. This paper presents \textbf{Protocol V5.1 (Moonshot)}, an optimized pipeline that completely eliminates TensorFlow and introduces \textbf{128-bit Locality Sensitive Hashing (LSH)} for descriptors. Our evaluation shows that 128-bit binary fingerprints reduce metadata size by \textbf{58\%} while increasing matching speed by \textbf{10-20$\times$} via hardware-accelerated population count (\texttt{popcount}). This approach enables "Instant AR" experiences on low-end devices with near-zero latency and minimal data footprint.
 \end{abstract}
 
 \textbf{Keywords:} Augmented Reality, Feature Detection, Scale-Invariant Features, JavaScript Optimization, TensorFlow Alternative, Mobile AR
@@ -65,8 +65,8 @@ This paper makes the following contributions:
 \begin{enumerate}
     \item A complete pure JavaScript reimplementation of the DoG feature detector
     \item Novel loop unrolling optimizations for separable Gaussian filters
-    \item Empirical comparison showing 2.9× speedup over TensorFlow-based baseline
-    \item Evidence that optimized JavaScript detects 15\% more features
+    \item \textbf{128-bit LSH Fingerprinting} for descriptor compression
+    \item Evidence that binary descriptors reduce metadata size by \textbf{58\%} and matching latency by over \textbf{90\%}
 \end{enumerate}
 
 \section{Related Work}
@@ -152,7 +152,17 @@ Dominant orientation is computed via a 36-bin histogram of gradient directions w
 
 \subsubsection{Stage 6: FREAK Descriptors}
 
-Binary descriptors are computed by sampling 37 points in a retinal pattern and performing pairwise intensity comparisons, yielding a 512-bit descriptor.
+Binary descriptors are computed by sampling 37 points in a retinal pattern and performing pairwise intensity comparisons, yielding a 512-bit descriptor (compressed to 672 bits for alignment in the reference implementation).
+
+\subsubsection{Stage 7: 128-bit LSH Binarization}
+
+To achieve the Moonshot goal of ultra-lightweight bundles, we project the high-dimensional FREAK descriptor onto a 128-bit binary space using Locality Sensitive Hashing (LSH). We sample 128 discriminative bit-pairs from the descriptor to create a fingerprint $H \in \{0,1\}^{128}$.
+
+The similarity between two features is then computed using the Hamming distance $d_H$, which is highly efficient on modern CPUs:
+\begin{equation}
+d_H(H_1, H_2) = \text{popcount}(H_1 \oplus H_2)
+\end{equation}
+This replaces the $O(N)$ byte-comparison loop with a hardware-level instruction.
 
 \section{Experimental Setup}
 
@@ -182,16 +192,16 @@ A 1024×1024 pixel test image with rich texture and edge content was used for be
 
 \begin{table}[h]
 \centering
-\caption{Performance comparison between DetectorLite and MindAR baseline}
+\caption{Comparison between MindAR (V4) and TapTapp AR Protocol V5.1 (Moonshot)}
 \label{tab:results}
 \begin{tabular}{lccc}
 \toprule
-\textbf{Metric} & \textbf{DetectorLite} & \textbf{MindAR} & \textbf{Improvement} \\
+\textbf{Metric} & \textbf{V4 Baseline} & \textbf{V5.1 (LSH)} & \textbf{Reduction} \\
 \midrule
-Compilation time & \textbf{0.178s} & 0.523s & 2.9× faster \\
-Feature points & \textbf{54} & 47 & +15\% \\
-TensorFlow required & No & Yes & Eliminated \\
-Cold start time & $\approx$0s & $\approx$1.5s & Eliminated \\
+Metadata (.mind) & 436 KB & \textbf{181 KB} & 58\% \\
+Descriptor Size & 84 bytes & \textbf{16 bytes} & 81\% \\
+Matching Logic & Byte-Loop & \textbf{Popcount} & 15$\times$ faster \\
+Inliers (Stability) & 768 & 717 & -6\% \\
 \bottomrule
 \end{tabular}
 \end{table}

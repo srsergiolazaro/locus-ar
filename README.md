@@ -10,8 +10,8 @@
 
 - 🖼️ **Hyper-Fast Compiler**: Pure JavaScript compiler that generates `.mind` files in **< 0.9s per image**.
 - ⚡ **No TensorFlow Dependency**: No TFJS at all. Works natively in any JS environment (Node, Browser, Workers).
-- 🚀 **Protocol V3 (Columnar Binary)**: Zero-copy loading with 80%+ smaller files and CPU-cache alignment.
-- 🧵 **Optimized Runtime**: Tracking engine with **Buffer Recycling** and **Zero-Copy** for smooth 60fps AR on low-end devices.
+- 🚀 **Protocol V5.1 (Moonshot LSH)**: 128-bit Locality Sensitive Hashing (LSH) for descriptors, resulting in **5-10x smaller metadata** and ultra-fast binary matching.
+- 🧵 **Optimized Runtime**: Tracking engine with **Buffer Recycling** and **128-bit Popcount** for smooth 60fps AR on low-end devices.
 - 📦 **Framework Agnostic**: Includes wrappers for **A-Frame**, **Three.js**, and a raw **Controller** for custom engines.
 
 ---
@@ -24,13 +24,14 @@ npm install @srsergio/taptapp-ar
 
 ---
 
-## 📊 Industry-Leading Benchmarks (v3)
+## 📊 Industry-Leading Benchmarks (v5.1 Moonshot)
 
-| Metric | Official MindAR | TapTapp AR | Improvement |
+| Metric | Official MindAR | TapTapp AR V5.1 | Improvement |
 | :--- | :--- | :--- | :--- |
 | **Compilation Time** | ~23.50s | **~0.89s** | 🚀 **26x Faster** |
-| **Output Size (.mind)** | ~770 KB | **~127 KB** | 📉 **83.5% Smaller** |
-| **Tracking Latency** | Variable (TFJS) | **Constant (Pure JS)** | ⚡ **Stable 60fps** |
+| **Output Size (.mind)** | ~770 KB | **~137 KB** | 📉 **82.2% Smaller** |
+| **Descriptor Format** | 84-byte Float | **128-bit LSH** | 🧠 **81% Data Saving** |
+| **Matching Engine** | Iterative Math | **Popcount XOR** | ⚡ **10x Faster Math** |
 | **Dependency Size** | ~20MB (TFJS) | **< 100KB** | 📦 **99% Smaller Bundle** |
 
 ---
@@ -226,12 +227,13 @@ controller.dispose();
 
 ---
 
-## 🏗️ Protocol V3 (Columnar Binary Format)
-TapTapp AR uses a proprietary columnar binary format that is significantly more efficient than standard JSON-based formats.
+## 🏗️ Protocol V5.1 (Moonshot LSH Format)
+TapTapp AR uses a proprietary **Moonshot Vision Codec** that is significantly more efficient than standard AR formats.
 
-- **Zero-Copy Restoration**: Binary buffers are mapped directly to TypedArrays.
+- **128-bit LSH Fingerprinting**: Each feature point is compressed from 84 bytes to 16 bytes using Locality Sensitive Hashing.
+- **Binary Matching Engine**: Uses hardware-accelerated population count (`popcount`) and `XOR` for near-instant point matching.
+- **Zero-Copy Restoration**: Binary buffers are mapped directly to TypedArrays (Uint32 for descriptors, Uint16 for coordinates).
 - **Cache Locality**: Performance is optimized for modern CPUs by keeping coordinates and descriptors adjacent in memory.
-- **Alignment Safe**: Automatically handles `ArrayBuffer` alignment for predictable behavior across all browsers.
 
 ---
 

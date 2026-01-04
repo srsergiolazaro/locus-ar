@@ -35,7 +35,7 @@ describe('Matcher with Columnar Data', () => {
             const b = img.bitmap.data[i * 4 + 2];
             greyData[i] = (r + g + b) / 3;
         }
-        const detector = new DetectorLite(imgWidth, imgHeight);
+        const detector = new DetectorLite(imgWidth, imgHeight, { useLSH: true });
         const { featurePoints } = detector.detect(greyData);
 
         const matcher = new Matcher(imgWidth, imgHeight, true);

@@ -27,7 +27,7 @@ const isNode = typeof process !== "undefined" &&
   process.versions != null &&
   process.versions.node != null;
 
-const CURRENT_VERSION = 3; // Protocol v3: High-performance Columnar Binary Format
+const CURRENT_VERSION = 5; // Protocol v5: Moonshot - LSH 64-bit
 
 /**
  * Compilador offline optimizado sin TensorFlow
@@ -172,7 +172,7 @@ export class OfflineCompiler {
       const keyframes = [];
 
       for (const image of imageList) {
-        const detector = new DetectorLite(image.width, image.height);
+        const detector = new DetectorLite(image.width, image.height, { useLSH: true });
         const { featurePoints: ps } = detector.detect(image.data);
 
         const maximaPoints = ps.filter((p) => p.maxima);
@@ -262,11 +262,12 @@ export class OfflineCompiler {
 
       const trackingData = item.trackingData.map((td) => {
         const count = td.points.length;
-        const px = new Float32Array(count);
-        const py = new Float32Array(count);
+        // Step 1: Packed Coords - Normalize width/height to 16-bit
+        const px = new Uint16Array(count);
+        const py = new Uint16Array(count);
         for (let i = 0; i < count; i++) {
-          px[i] = td.points[i].x;
-          py[i] = td.points[i].y;
+          px[i] = Math.round((td.points[i].x / td.width) * 65535);
+          py[i] = Math.round((td.points[i].y / td.height) * 65535);
         }
         return {
           w: td.width,
@@ -294,30 +295,73 @@ export class OfflineCompiler {
     });
   }
 
+  _getMorton(x, y) {
+    // Interleave bits of x and y
+    let x_int = x | 0;
+    let y_int = y | 0;
+
+    x_int = (x_int | (x_int << 8)) & 0x00FF00FF;
+    x_int = (x_int | (x_int << 4)) & 0x0F0F0F0F;
+    x_int = (x_int | (x_int << 2)) & 0x33333333;
+    x_int = (x_int | (x_int << 1)) & 0x55555555;
+
+    y_int = (y_int | (y_int << 8)) & 0x00FF00FF;
+    y_int = (y_int | (y_int << 4)) & 0x0F0F0F0F;
+    y_int = (y_int | (y_int << 2)) & 0x33333333;
+    y_int = (y_int | (y_int << 1)) & 0x55555555;
+
+    return x_int | (y_int << 1);
+  }
+
   _packKeyframe(kf) {
+    // Step 2.1: Morton Sorting - Sort points spatially to improve Delta-Descriptor XOR
+    const sortPoints = (points) => {
+      return [...points].sort((a, b) => {
+        return this._getMorton(a.x, a.y) - this._getMorton(b.x, b.y);
+      });
+    };
+
+    const sortedMaxima = sortPoints(kf.maximaPoints);
+    const sortedMinima = sortPoints(kf.minimaPoints);
+
+    // Rebuild clusters with sorted indices
+    const sortedMaximaCluster = hierarchicalClusteringBuild({ points: sortedMaxima });
+    const sortedMinimaCluster = hierarchicalClusteringBuild({ points: sortedMinima });
+
     return {
       w: kf.width,
       h: kf.height,
       s: kf.scale,
-      max: this._columnarize(kf.maximaPoints, kf.maximaPointsCluster),
-      min: this._columnarize(kf.minimaPoints, kf.minimaPointsCluster),
+      max: this._columnarize(sortedMaxima, sortedMaximaCluster, kf.width, kf.height),
+      min: this._columnarize(sortedMinima, sortedMinimaCluster, kf.width, kf.height),
     };
   }
 
-  _columnarize(points, tree) {
+  _columnarize(points, tree, width, height) {
     const count = points.length;
-    const x = new Float32Array(count);
-    const y = new Float32Array(count);
-    const angle = new Float32Array(count);
-    const scale = new Float32Array(count);
-    const descriptors = new Uint8Array(count * 84); // 84 bytes per point (FREAK)
+    // Step 1: Packed Coords - Normalize to 16-bit
+    const x = new Uint16Array(count);
+    const y = new Uint16Array(count);
+    // Step 1.1: Angle Quantization - Int16
+    const angle = new Int16Array(count);
+    // Step 1.2: Scale Indexing - Uint8
+    const scale = new Uint8Array(count);
+
+    // Step 3: LSH 128-bit Descriptors - Uint32Array (4 elements per point)
+    const descriptors = new Uint32Array(count * 4);
 
     for (let i = 0; i < count; i++) {
-      x[i] = points[i].x;
-      y[i] = points[i].y;
-      angle[i] = points[i].angle;
-      scale[i] = points[i].scale;
-      descriptors.set(points[i].descriptors, i * 84);
+      x[i] = Math.round((points[i].x / width) * 65535);
+      y[i] = Math.round((points[i].y / height) * 65535);
+      angle[i] = Math.round((points[i].angle / Math.PI) * 32767);
+      scale[i] = Math.round(Math.log2(points[i].scale || 1));
+
+      if (points[i].descriptors && points[i].descriptors.length === 4) {
+        descriptors[i * 4] = points[i].descriptors[0];
+        descriptors[(i * 4) + 1] = points[i].descriptors[1];
+        descriptors[(i * 4) + 2] = points[i].descriptors[2];
+        descriptors[(i * 4) + 3] = points[i].descriptors[3];
+      }
     }
 
     return {
@@ -345,23 +389,79 @@ export class OfflineCompiler {
       return [];
     }
 
-    // Restore Float32Arrays from Uint8Arrays returned by msgpack
+    // Restore TypedArrays from Uint8Arrays returned by msgpack
     const dataList = content.dataList;
     for (let i = 0; i < dataList.length; i++) {
       const item = dataList[i];
+
+      // Unpack Tracking Data
+      for (const td of item.trackingData) {
+        let pxRaw = td.px;
+        let pyRaw = td.py;
+
+        if (pxRaw instanceof Uint8Array) {
+          pxRaw = new Uint16Array(pxRaw.buffer.slice(pxRaw.byteOffset, pxRaw.byteOffset + pxRaw.byteLength));
+        }
+        if (pyRaw instanceof Uint8Array) {
+          pyRaw = new Uint16Array(pyRaw.buffer.slice(pyRaw.byteOffset, pyRaw.byteOffset + pyRaw.byteLength));
+        }
+
+        // Rescale for compatibility with Tracker
+        const count = pxRaw.length;
+        const px = new Float32Array(count);
+        const py = new Float32Array(count);
+        for (let k = 0; k < count; k++) {
+          px[k] = (pxRaw[k] / 65535) * td.w;
+          py[k] = (pyRaw[k] / 65535) * td.h;
+        }
+        td.px = px;
+        td.py = py;
+      }
+
+      // Unpack Matching Data
       for (const kf of item.matchingData) {
         for (const col of [kf.max, kf.min]) {
-          if (col.x instanceof Uint8Array) {
-            col.x = new Float32Array(col.x.buffer.slice(col.x.byteOffset, col.x.byteOffset + col.x.byteLength));
+          let xRaw = col.x;
+          let yRaw = col.y;
+
+          if (xRaw instanceof Uint8Array) {
+            xRaw = new Uint16Array(xRaw.buffer.slice(xRaw.byteOffset, xRaw.byteOffset + xRaw.byteLength));
           }
-          if (col.y instanceof Uint8Array) {
-            col.y = new Float32Array(col.y.buffer.slice(col.y.byteOffset, col.y.byteOffset + col.y.byteLength));
+          if (yRaw instanceof Uint8Array) {
+            yRaw = new Uint16Array(yRaw.buffer.slice(yRaw.byteOffset, yRaw.byteOffset + yRaw.byteLength));
           }
+
+          // Rescale for compatibility with Matcher
+          const count = xRaw.length;
+          const x = new Float32Array(count);
+          const y = new Float32Array(count);
+          for (let k = 0; k < count; k++) {
+            x[k] = (xRaw[k] / 65535) * kf.w;
+            y[k] = (yRaw[k] / 65535) * kf.h;
+          }
+          col.x = x;
+          col.y = y;
+
           if (col.a instanceof Uint8Array) {
-            col.a = new Float32Array(col.a.buffer.slice(col.a.byteOffset, col.a.byteOffset + col.a.byteLength));
+            const aRaw = new Int16Array(col.a.buffer.slice(col.a.byteOffset, col.a.byteOffset + col.a.byteLength));
+            const a = new Float32Array(count);
+            for (let k = 0; k < count; k++) {
+              a[k] = (aRaw[k] / 32767) * Math.PI;
+            }
+            col.a = a;
           }
           if (col.s instanceof Uint8Array) {
-            col.s = new Float32Array(col.s.buffer.slice(col.s.byteOffset, col.s.byteOffset + col.s.byteLength));
+            const sRaw = col.s;
+            const s = new Float32Array(count);
+            for (let k = 0; k < count; k++) {
+              s[k] = Math.pow(2, sRaw[k]);
+            }
+            col.s = s;
+          }
+
+          // Restore LSH descriptors (Uint32Array)
+          if (col.d instanceof Uint8Array) {
+            col.d = new Uint32Array(col.d.buffer.slice(col.d.byteOffset, col.d.byteOffset + col.d.byteLength));
           }
         }
       }
@@ -376,23 +476,23 @@ export class OfflineCompiler {
       width: kf.w,
       height: kf.h,
       scale: kf.s,
-      maximaPoints: this._decolumnarize(kf.max),
-      minimaPoints: this._decolumnarize(kf.min),
+      maximaPoints: this._decolumnarize(kf.max, kf.w, kf.h),
+      minimaPoints: this._decolumnarize(kf.min, kf.w, kf.h),
       maximaPointsCluster: { rootNode: this._expandTree(kf.max.t) },
       minimaPointsCluster: { rootNode: this._expandTree(kf.min.t) },
     };
   }
 
-  _decolumnarize(col) {
+  _decolumnarize(col, width, height) {
     const points = [];
     const count = col.x.length;
     for (let i = 0; i < count; i++) {
       points.push({
-        x: col.x[i],
-        y: col.y[i],
+        x: (col.x[i] / 65535) * width,
+        y: (col.y[i] / 65535) * height,
         angle: col.a[i],
         scale: col.s ? col.s[i] : 1.0,
-        descriptors: col.d.slice(i * 84, (i + 1) * 84),
+        descriptors: col.d.slice(i * 4, (i + 1) * 4),
       });
     }
     return points;
