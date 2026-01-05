@@ -71,49 +71,17 @@ parentPort.on('message', async (msg) => {
         const { targetImage, percentPerImage, basePercent } = msg;
 
         try {
-            // 🚀 MOONSHOT: Only run detector ONCE on full-res image.
-            // DetectorLite internally builds a pyramid (octaves 1.0, 0.5, 0.25, etc.)
-            const detector = new DetectorLite(targetImage.width, targetImage.height, {
-                useLSH: true
-            });
-
-            parentPort.postMessage({ type: 'progress', percent: basePercent + percentPerImage * 0.1 });
-
-            const { featurePoints: allPoints } = detector.detect(targetImage.data);
-
-            parentPort.postMessage({ type: 'progress', percent: basePercent + percentPerImage * 0.5 });
-
-            // Group points by their scale (octave)
-            const scalesMap = new Map();
-            for (const p of allPoints) {
-                const octaveScale = p.scale;
-                let list = scalesMap.get(octaveScale);
-                if (!list) {
-                    list = [];
-                    scalesMap.set(octaveScale, list);
-                }
-
-                // Coordinates in p are already full-res. 
-                // We need them relative to the scaled image for the keyframe.
-                list.push({
-                    ...p,
-                    x: p.x / octaveScale,
-                    y: p.y / octaveScale,
-                    scale: 1.0 // Keypoint scale is always 1.0 relative to its own keyframe image
-                });
-            }
-
-            // Optional: Run another detector pass at an intermediate scale to improve coverage
-            // (e.g. at 1/1.41 ratio) if tracking robustness suffers. 
-            // For now, let's stick to octaves for MAXIMUM speed.
-
+            const { buildImageList } = await import('./image-list.js');
+            const imageList = buildImageList(targetImage);
+            const percentPerScale = percentPerImage / imageList.length;
             const keyframes = [];
-            const sortedScales = Array.from(scalesMap.keys()).sort((a, b) => a - b);
 
-            const percentPerScale = (percentPerImage * 0.4) / sortedScales.length;
+            for (let i = 0; i < imageList.length; i++) {
+                const image = imageList[i];
+                // Disable internal pyramid (maxOctaves: 1) as we are already processing a scale list
+                const detector = new DetectorLite(image.width, image.height, { useLSH: true, maxOctaves: 1 });
+                const { featurePoints: ps } = detector.detect(image.data);
 
-            for (const s of sortedScales) {
-                const ps = scalesMap.get(s);
                 const sortedPs = sortPoints(ps);
                 const maximaPoints = sortedPs.filter((p) => p.maxima);
                 const minimaPoints = sortedPs.filter((p) => !p.maxima);
@@ -126,14 +94,14 @@ parentPort.on('message', async (msg) => {
                     minimaPoints,
                     maximaPointsCluster,
                     minimaPointsCluster,
-                    width: Math.round(targetImage.width / s),
-                    height: Math.round(targetImage.height / s),
-                    scale: 1.0 / s, // keyframe.scale is relative to full target image
+                    width: image.width,
+                    height: image.height,
+                    scale: image.scale,
                 });
 
                 parentPort.postMessage({
                     type: 'progress',
-                    percent: basePercent + percentPerImage * 0.6 + keyframes.length * percentPerScale
+                    percent: basePercent + (i + 1) * percentPerScale
                 });
             }
 

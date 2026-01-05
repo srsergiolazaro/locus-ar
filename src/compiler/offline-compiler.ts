@@ -110,103 +110,15 @@ export class OfflineCompiler {
     async _compileTarget(targetImages: any[], progressCallback: (p: number) => void) {
         if (isNode) await this._initNodeWorkers();
 
-        if (this.workerPool) {
-            const progressMap = new Float32Array(targetImages.length);
-            const wrappedPromises = targetImages.map((targetImage: any, index: number) => {
-                return this.workerPool!.runTask({
-                    type: 'compile-all', // 🚀 MOONSHOT: Combined task
-                    targetImage,
-                    onProgress: (p: number) => {
-                        progressMap[index] = p;
-                        const sum = progressMap.reduce((a, b) => a + b, 0);
-                        progressCallback(sum / targetImages.length);
-                    }
-                });
-            });
-            return Promise.all(wrappedPromises);
-        }
+        // Reverted: 'compile-all' combined task was causing issues with pyramid processing
+        // We go back to sequential match and track for reliability
+        const matchingResults = await this._compileMatch(targetImages, (p) => progressCallback(p * 0.5));
+        const trackingResults = await this._compileTrack(targetImages, (p) => progressCallback(50 + p * 0.5));
 
-        // 🚀 MOONSHOT BROWSER FALLBACK:
-        // Combined detection to avoid redundant pyramid processing
-        const results = [];
-        for (let i = 0; i < targetImages.length; i++) {
-            const targetImage = targetImages[i];
-
-            // 1. Single Pass Detection + Pyramid Generation
-            const detector = new DetectorLite(targetImage.width, targetImage.height, { useLSH: true });
-            progressCallback((i / targetImages.length) * 100 + 10);
-
-            const { featurePoints, pyramid }: any = detector.detect(targetImage.data);
-            progressCallback((i / targetImages.length) * 100 + 40);
-
-            // 2. Extract Tracking Data using the ALREADY BLURRED pyramid
-            const trackingImageList: any[] = [];
-            const targetSizes = [256, 128];
-            for (const targetSize of targetSizes) {
-                let bestLevel = 0;
-                let minDiff = Math.abs(Math.min(targetImage.width, targetImage.height) - targetSize);
-
-                for (let l = 1; l < pyramid.length; l++) {
-                    const img = pyramid[l][0];
-                    const diff = Math.abs(Math.min(img.width, img.height) - targetSize);
-                    if (diff < minDiff) {
-                        minDiff = diff;
-                        bestLevel = l;
-                    }
-                }
-
-                const levelImg = pyramid[bestLevel][0];
-                trackingImageList.push({
-                    data: levelImg.data,
-                    width: levelImg.width,
-                    height: levelImg.height,
-                    scale: levelImg.width / targetImage.width
-                });
-            }
-
-            const trackingData = extractTrackingFeatures(trackingImageList, () => { });
-            progressCallback((i / targetImages.length) * 100 + 60);
-
-            // 3. Build Keyframes for Matching (Group by scale)
-            const scalesMap = new Map();
-            for (const p of featurePoints) {
-                const s = p.scale;
-                let list = scalesMap.get(s);
-                if (!list) {
-                    list = [];
-                    scalesMap.set(s, list);
-                }
-                list.push({ ...p, x: p.x / s, y: p.y / s, scale: 1.0 });
-            }
-
-            const keyframes = [];
-            const sortedScales = Array.from(scalesMap.keys()).sort((a, b) => a - b);
-            for (const s of sortedScales) {
-                const ps = scalesMap.get(s);
-                const maximaPoints = ps.filter((p: any) => p.maxima);
-                const minimaPoints = ps.filter((p: any) => !p.maxima);
-                const maximaPointsCluster = hierarchicalClusteringBuild({ points: maximaPoints });
-                const minimaPointsCluster = hierarchicalClusteringBuild({ points: minimaPoints });
-
-                keyframes.push({
-                    maximaPoints,
-                    minimaPoints,
-                    maximaPointsCluster,
-                    minimaPointsCluster,
-                    width: Math.round(targetImage.width / s),
-                    height: Math.round(targetImage.height / s),
-                    scale: 1.0 / s,
-                });
-            }
-
-            results.push({
-                matchingData: keyframes,
-                trackingData: trackingData
-            });
-            progressCallback(((i + 1) / targetImages.length) * 100);
-        }
-
-        return results;
+        return targetImages.map((_, i) => ({
+            matchingData: matchingResults[i],
+            trackingData: trackingResults[i]
+        }));
     }
 
     async _compileMatch(targetImages: any[], progressCallback: (p: number) => void) {
@@ -243,7 +155,8 @@ export class OfflineCompiler {
             const keyframes = [];
 
             for (const image of imageList as any[]) {
-                const detector = new DetectorLite(image.width, image.height, { useLSH: true });
+                // Disabling internal pyramid (maxOctaves: 1) as we are already processing a scale list
+                const detector = new DetectorLite(image.width, image.height, { useLSH: true, maxOctaves: 1 });
                 const { featurePoints: ps } = detector.detect(image.data);
 
                 const maximaPoints = ps.filter((p: any) => p.maxima);
