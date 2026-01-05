@@ -26,6 +26,9 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
 
+      - name: Install dependencies
+        run: npm install
+
       - name: Bump version and Publish
         run: |
           # Increment version (patch: 1.0.0 -> 1.0.1)
