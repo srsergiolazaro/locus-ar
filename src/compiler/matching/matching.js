@@ -4,11 +4,11 @@ import { computeHoughMatches } from "./hough.js";
 import { computeHomography } from "./ransacHomography.js";
 import { multiplyPointHomographyInhomogenous, matrixInverse33 } from "../utils/geometry.js";
 
-const INLIER_THRESHOLD = 3;
+const INLIER_THRESHOLD = 10; // Relaxed from 3 to 10 for better robustness with LSH
 //const MIN_NUM_INLIERS = 8;  //default
 const MIN_NUM_INLIERS = 6;
-const CLUSTER_MAX_POP = 8;
-const HAMMING_THRESHOLD = 0.7;
+const CLUSTER_MAX_POP = 20; // Increased to explore more candidate clusters
+const HAMMING_THRESHOLD = 0.85; // Relaxed ratio test for binary descriptors
 
 // match list of querpoints against pre-built list of keyframes
 const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) => {

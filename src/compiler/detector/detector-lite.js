@@ -19,7 +19,7 @@ const PYRAMID_MIN_SIZE = 4; // Restored to 4 for better small-scale detection
 
 
 const NUM_BUCKETS_PER_DIMENSION = 10;
-const MAX_FEATURES_PER_BUCKET = 20; // Reverted to 20 to check if it fixes robustness
+const MAX_FEATURES_PER_BUCKET = 30; // Maximized to ensure robustness in Moonshot mode
 
 
 const ORIENTATION_NUM_BINS = 36;
@@ -282,7 +282,7 @@ export class DetectorLite {
                 for (let x = 1; x < width - 1; x++) {
                     const val = curr.data[y * width + x];
 
-                    if (Math.abs(val) < 0.01) continue; // Threshold reducido de 0.015 a 0.01 para mayor sensibilidad
+                    if (Math.abs(val) < 0.003) continue; // Aggressively lowered threshold to 0.003 for max sensitivity
 
                     let isMaxima = true;
                     let isMinima = true;
