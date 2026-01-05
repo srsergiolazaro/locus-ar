@@ -233,7 +233,7 @@ class Controller {
             lastModelViewTransform,
             targetIndex,
         );
-        if (worldCoords.length < 6) return null;
+        if (worldCoords.length < 10) return null; // Increased from 6 to 10 for better noise rejection
         const modelViewTransform = await this._workerTrackUpdate(lastModelViewTransform, {
             worldCoords,
             screenCoords,

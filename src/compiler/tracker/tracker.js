@@ -136,6 +136,20 @@ class Tracker {
       }
     }
 
+    // 2.1 Spatial distribution check: Avoid getting stuck in corners/noise
+    if (screenCoords.length >= 10) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of screenCoords) {
+        if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x; if (p.y > maxY) maxY = p.y;
+      }
+      const detectedDiagonal = Math.sqrt((maxX - minX) ** 2 + (maxY - minY) ** 2);
+
+      // If the points cover too little space compared to the screen size of the marker, it's a glitch
+      if (detectedDiagonal < screenW * 0.15) {
+        return { worldCoords: [], screenCoords: [], debugExtra };
+      }
+    }
     if (this.debugMode) {
       debugExtra = {
         octaveIndex,
