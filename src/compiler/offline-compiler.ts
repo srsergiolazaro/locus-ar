@@ -39,10 +39,10 @@ export class OfflineCompiler {
             const workerThreadsModule = "node:worker_threads";
 
             const [path, url, os, { Worker }] = await Promise.all([
-                import(pathModule),
-                import(urlModule),
-                import(osModule),
-                import(workerThreadsModule)
+                import(/* @vite-ignore */ pathModule),
+                import(/* @vite-ignore */ urlModule),
+                import(/* @vite-ignore */ osModule),
+                import(/* @vite-ignore */ workerThreadsModule)
             ]);
 
             const __filename = url.fileURLToPath(import.meta.url);
@@ -274,7 +274,7 @@ export class OfflineCompiler {
                         px,
                         py,
 
-                        d: this._pack4Bit(td.data),
+                        d: td.data,
                     };
                 }),
                 matchingData: item.matchingData.map((kf: any) => ({
@@ -375,11 +375,10 @@ export class OfflineCompiler {
                 td.px = px;
                 td.py = py;
 
-                // 🚀 MOONSHOT: Unpack 4-bit tracking data if detected
+                // No longer unpacking 4-bit, keeping original data
                 if (td.data && td.data.length === (td.width * td.height) / 2) {
                     td.data = this._unpack4Bit(td.data, td.width, td.height);
                 }
-                // Also handle 'd' property if it exists (msgpack mapping)
                 if (td.d && td.d.length === (td.w * td.h) / 2) {
                     td.d = this._unpack4Bit(td.d, td.w, td.h);
                 }

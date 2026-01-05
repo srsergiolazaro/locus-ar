@@ -12,7 +12,7 @@ const MAX_SIM_THRESH = 0.95;
 const MAX_THRESH = 0.9;
 const MIN_THRESH = 0.2;
 const SD_THRESH = 8.0;
-const OCCUPANCY_SIZE = 10;  // Reducido de 16 para permitir puntos más cercanos
+const OCCUPANCY_SIZE = 8;  // Reduced from 10 to allow more density
 
 // GPU mode flag - set to false to use original JS implementation
 let useGPU = true;
@@ -102,7 +102,7 @@ const extract = (image) => {
   }
 
   // Determine dValue threshold for top 5% (aumentado de 2% para más candidatos)
-  const maxPoints = 0.05 * width * height;
+  const maxPoints = 0.10 * width * height; // Increased to 10% for more candidates
   let kThresh = 999;
   let filteredCount = 0;
   while (kThresh >= 0) {
@@ -344,17 +344,15 @@ const _getSimilarityOptimized = (options) => {
   let sxy = 0;
   const p1_start = (cy - templateSize) * width + (cx - templateSize);
 
-  for (let j = 0; j < templateWidth; j += 2) {
+  for (let j = 0; j < templateWidth; j++) {
     const rowOffset1 = p1_start + j * width;
     const rowOffset2 = j * templateWidth;
-    for (let i = 0; i < templateWidth; i += 2) {
+    for (let i = 0; i < templateWidth; i++) {
       sxy += imageData[rowOffset1 + i] * templateData[rowOffset2 + i];
     }
   }
 
-  // Factor to normalize sxy back to full template area
-  // templateWidth is 13, steps of 2 hit 7 points per dim = 49 total points (vs 169)
-  const sampledCount = Math.ceil(templateWidth / 2) ** 2;
+  const sampledCount = templateWidth * templateWidth;
   const totalCount = templateWidth * templateWidth;
   sxy *= (totalCount / sampledCount);
 

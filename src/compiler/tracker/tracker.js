@@ -76,15 +76,24 @@ class Tracker {
     const screenW = Math.sqrt((p1.x - p0.x) ** 2 + (p1.y - p0.y) ** 2);
 
     // Select octave whose image width is closest to screenW
-    let octaveIndex = 0;
-    let minDiff = Infinity;
+    // Select the best octave based on current estimated distance/scale
+    // Hysteresis: prevent flip-flopping between octaves
+    if (!this.lastOctaveIndex) this.lastOctaveIndex = [];
+
+    let octaveIndex = this.lastOctaveIndex[targetIndex] !== undefined ? this.lastOctaveIndex[targetIndex] : 0;
+    let minDiff = Math.abs(this.prebuiltData[targetIndex][octaveIndex].width - screenW);
+
+    // Threshold to switch: only switch if another octave is much better (20% improvement)
+    const switchThreshold = 0.8;
+
     for (let i = 0; i < this.prebuiltData[targetIndex].length; i++) {
       const diff = Math.abs(this.prebuiltData[targetIndex][i].width - screenW);
-      if (diff < minDiff) {
+      if (diff < minDiff * switchThreshold) {
         minDiff = diff;
         octaveIndex = i;
       }
     }
+    this.lastOctaveIndex[targetIndex] = octaveIndex;
 
     const prebuilt = this.prebuiltData[targetIndex][octaveIndex];
 
