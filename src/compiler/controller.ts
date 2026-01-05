@@ -2,7 +2,11 @@ import { Tracker } from "./tracker/tracker.js";
 import { CropDetector } from "./detector/crop-detector.js";
 import { OfflineCompiler as Compiler } from "./offline-compiler.js";
 import { InputLoader } from "./input-loader.js";
-import { OneEuroFilter } from "../libs/one-euro-filter.js";
+import { FeatureManager } from "./features/feature-manager.js";
+import { OneEuroFilterFeature } from "./features/one-euro-filter-feature.js";
+import { TemporalFilterFeature } from "./features/temporal-filter-feature.js";
+import { AutoRotationFeature } from "./features/auto-rotation-feature.js";
+import { CropDetectionFeature } from "./features/crop-detection-feature.js";
 
 let ControllerWorker: any;
 
@@ -41,11 +45,6 @@ class Controller {
     inputWidth: number;
     inputHeight: number;
     maxTrack: number;
-    filterMinCF: number;
-    filterBeta: number;
-    warmupTolerance: number;
-    missTolerance: number;
-    cropDetector: CropDetector;
     inputLoader: InputLoader;
     markerDimensions: any[] | null = null;
     onUpdate: ((data: any) => void) | null;
@@ -62,6 +61,7 @@ class Controller {
     workerTrackDone: ((data: any) => void) | null = null;
     mainThreadMatcher: any;
     mainThreadEstimator: any;
+    featureManager: FeatureManager;
 
     constructor({
         inputWidth,
@@ -78,16 +78,31 @@ class Controller {
         this.inputWidth = inputWidth;
         this.inputHeight = inputHeight;
         this.maxTrack = maxTrack;
-        this.filterMinCF = filterMinCF === null ? DEFAULT_FILTER_CUTOFF : filterMinCF;
-        this.filterBeta = filterBeta === null ? DEFAULT_FILTER_BETA : filterBeta;
-        this.warmupTolerance = warmupTolerance === null ? DEFAULT_WARMUP_TOLERANCE : warmupTolerance;
-        this.missTolerance = missTolerance === null ? DEFAULT_MISS_TOLERANCE : missTolerance;
-        this.cropDetector = new CropDetector(this.inputWidth, this.inputHeight, debugMode);
+
+        this.featureManager = new FeatureManager();
+        this.featureManager.addFeature(new OneEuroFilterFeature(
+            filterMinCF === null ? DEFAULT_FILTER_CUTOFF : filterMinCF,
+            filterBeta === null ? DEFAULT_FILTER_BETA : filterBeta
+        ));
+        this.featureManager.addFeature(new TemporalFilterFeature(
+            warmupTolerance === null ? DEFAULT_WARMUP_TOLERANCE : warmupTolerance,
+            missTolerance === null ? DEFAULT_MISS_TOLERANCE : missTolerance
+        ));
+        this.featureManager.addFeature(new AutoRotationFeature());
+        this.featureManager.addFeature(new CropDetectionFeature());
+
         this.inputLoader = new InputLoader(this.inputWidth, this.inputHeight);
         this.onUpdate = onUpdate;
         this.debugMode = debugMode;
         this.worker = worker;
         if (this.worker) this._setupWorkerListener();
+
+        this.featureManager.init({
+            inputWidth: this.inputWidth,
+            inputHeight: this.inputHeight,
+            projectionTransform: [], // Will be set below
+            debugMode: this.debugMode
+        });
 
         const near = 10;
         const far = 100000;
@@ -99,6 +114,13 @@ class Controller {
             [0, f, this.inputHeight / 2],
             [0, 0, 1],
         ];
+
+        this.featureManager.init({
+            inputWidth: this.inputWidth,
+            inputHeight: this.inputHeight,
+            projectionTransform: this.projectionTransform,
+            debugMode: this.debugMode
+        });
 
         this.projectionMatrix = this._glProjectionMatrix({
             projectionTransform: this.projectionTransform,
@@ -197,7 +219,8 @@ class Controller {
 
     dummyRun(input: any) {
         const inputData = this.inputLoader.loadInput(input);
-        this.cropDetector.detect(inputData);
+        const cropFeature = this.featureManager.getFeature<CropDetectionFeature>("crop-detection");
+        cropFeature?.detect(inputData, false);
         this.tracker!.dummyRun(inputData);
     }
 
@@ -219,7 +242,8 @@ class Controller {
     }
 
     async _detectAndMatch(inputData: any, targetIndexes: number[]) {
-        const { featurePoints } = this.cropDetector.detectMoving(inputData);
+        const cropFeature = this.featureManager.getFeature<CropDetectionFeature>("crop-detection");
+        const { featurePoints } = cropFeature!.detect(inputData, true);
         const { targetIndex: matchedTargetIndex, modelViewTransform } = await this._workerMatch(
             featurePoints,
             targetIndexes,
@@ -253,7 +277,6 @@ class Controller {
                 currentModelViewTransform: null,
                 trackCount: 0,
                 trackMiss: 0,
-                filter: new OneEuroFilter({ minCutOff: this.filterMinCF, beta: this.filterBeta }),
             });
         }
 
@@ -298,46 +321,34 @@ class Controller {
                         }
                     }
 
-                    if (!trackingState.showing) {
-                        if (trackingState.isTracking) {
-                            trackingState.trackMiss = 0;
-                            trackingState.trackCount += 1;
-                            if (trackingState.trackCount > this.warmupTolerance) {
-                                trackingState.showing = true;
-                                trackingState.trackingMatrix = null;
-                                trackingState.filter.reset();
-                            }
-                        }
-                    }
+                    const wasShowing = trackingState.showing;
+                    trackingState.showing = this.featureManager.shouldShow(i, trackingState.isTracking);
 
-                    if (trackingState.showing) {
-                        if (!trackingState.isTracking) {
-                            trackingState.trackCount = 0;
-                            trackingState.trackMiss += 1;
-                            if (trackingState.trackMiss > this.missTolerance) {
-                                trackingState.showing = false;
-                                trackingState.trackingMatrix = null;
-                                this.onUpdate && this.onUpdate({ type: "updateMatrix", targetIndex: i, worldMatrix: null });
-                            }
-                        } else {
-                            trackingState.trackMiss = 0;
-                        }
+                    if (wasShowing && !trackingState.showing) {
+                        trackingState.trackingMatrix = null;
+                        this.onUpdate && this.onUpdate({ type: "updateMatrix", targetIndex: i, worldMatrix: null });
+                        this.featureManager.notifyUpdate({ type: "reset", targetIndex: i });
                     }
 
                     if (trackingState.showing) {
                         const worldMatrix = this._glModelViewMatrix(trackingState.currentModelViewTransform, i);
-                        trackingState.trackingMatrix = trackingState.filter.filter(Date.now(), worldMatrix);
-                        let clone = [...trackingState.trackingMatrix];
+                        const filteredMatrix = this.featureManager.applyWorldMatrixFilters(i, worldMatrix);
+                        trackingState.trackingMatrix = filteredMatrix;
+
+                        let finalMatrix = [...filteredMatrix];
 
                         const isInputRotated = input.width === this.inputHeight && input.height === this.inputWidth;
                         if (isInputRotated) {
-                            clone = this.getRotatedZ90Matrix(clone);
+                            const rotationFeature = this.featureManager.getFeature<AutoRotationFeature>("auto-rotation");
+                            if (rotationFeature) {
+                                finalMatrix = rotationFeature.rotate(finalMatrix);
+                            }
                         }
 
                         this.onUpdate && this.onUpdate({
                             type: "updateMatrix",
                             targetIndex: i,
-                            worldMatrix: clone,
+                            worldMatrix: finalMatrix,
                             modelViewTransform: trackingState.currentModelViewTransform
                         });
                     }
@@ -361,7 +372,8 @@ class Controller {
 
     async detect(input: any) {
         const inputData = this.inputLoader.loadInput(input);
-        const { featurePoints, debugExtra } = this.cropDetector.detect(inputData);
+        const cropFeature = this.featureManager.getFeature<CropDetectionFeature>("crop-detection");
+        const { featurePoints, debugExtra } = cropFeature!.detect(inputData, false);
         return { featurePoints, debugExtra };
     }
 
