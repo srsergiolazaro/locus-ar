@@ -61,6 +61,7 @@ class Tracker {
 
   track(inputData, lastModelViewTransform, targetIndex) {
     let debugExtra = {};
+    if (!lastModelViewTransform) return { worldCoords: [], screenCoords: [], octaveIndex: 0, debugExtra };
 
     // Select the best octave based on current estimated distance/scale
     // We want the octave where the marker size is closest to its projected size on screen
