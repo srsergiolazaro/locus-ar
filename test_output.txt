@@ -1,0 +1,12 @@
+
+[1m[46m RUN [49m[22m [36mv4.0.16 [39m[90m/Users/srsergio/Documents/project/taptapp-landing-page/packages/taptapp-ar[39m
+
+[90mstdout[2m | tests/tracker-robustness.test.js[2m > [22m[2mTracker Robustness Evaluation (via Controller)
+[22m[39m🔨 Compiling reference target...
+
+[90mstdout[2m | tests/tracker-robustness.test.js[2m > [22m[2mTracker Robustness Evaluation (via Controller)
+[22m[39m⏱️ Compilación total: 3.237s
+
+[90mstdout[2m | tests/tracker-robustness.test.js[2m > [22m[2mTracker Robustness Evaluation (via Controller)
+[22m[39m✅ Target compiled and ready.
+

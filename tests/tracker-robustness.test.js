@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { Controller } from '../src/compiler/controller.js';
 import { OfflineCompiler } from '../src/compiler/offline-compiler.js';
+import { DetectorLite } from '../src/compiler/detector/detector-lite.js';
 import { Jimp } from 'jimp';
 import path from 'path';
 import fs from 'fs';
@@ -69,7 +70,7 @@ describe('Tracker Robustness Evaluation (via Controller)', () => {
                     controller.addImageTargetsFromBuffers([mindBuffer]);
 
                     // 3. Process image (Detect + Match)
-                    // We simulate what Controller does in processVideo but for a single frame
+                    // We use DetectorLite directly for FULL image detection (not cropped)
                     const inputData = new Uint8Array(width * height);
                     const rgbaData = image.bitmap.data;
                     image.greyscale();
@@ -77,13 +78,20 @@ describe('Tracker Robustness Evaluation (via Controller)', () => {
                         inputData[i] = rgbaData[i * 4];
                     }
 
-                    // Perform detection
-                    const { featurePoints } = await controller.detect(inputData);
+                    // Perform FULL detection
+                    const detector = new DetectorLite(width, height, { useLSH: true });
+                    const { featurePoints } = detector.detect(inputData);
+                    const featuresCount = featurePoints?.length || 0;
+                    console.log(`[${res}] ${filename} | Detected: ${featuresCount} features`);
+
+                    if (featuresCount < 10) {
+                        console.log(`[${res}] ${filename} | ⚠️ Too few features detected`);
+                    }
 
                     // Perform matching (targetIndex 0 since we only compiled one)
                     const matchResult = await controller.match(featurePoints, 0);
 
-                    const inliers = matchResult.debugExtra?.frames[0]?.matches?.length || 0;
+                    const inliers = matchResult.screenCoords?.length || 0;
                     const status = inliers >= CONFIG.MIN_INLIERS_PASS ? '✅ PASS' :
                         (inliers >= CONFIG.MIN_INLIERS_LOW ? '⚠️ LOW' : '❌ FAIL');
 

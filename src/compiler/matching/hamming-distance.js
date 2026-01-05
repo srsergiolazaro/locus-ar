@@ -18,14 +18,10 @@ function popcount32(n) {
 const compute = (options) => {
   const { v1, v2, v1Offset = 0, v2Offset = 0 } = options;
 
-  // Protocol V5 Path: 64-bit LSH (two Uint32)
-  if (v1.length === v2.length && (v1.length / (v1.buffer.byteLength / v1.length)) === 2) {
-    // This is a bit hacky check, better if we know the version. 
-    // Assuming if it's not 84 bytes, it's the new 8-byte format.
-  }
+  const v2Len = v2.length - v2Offset;
 
-  // If descriptors are 84 bytes (Protocol V4)
-  if (v1.length >= v1Offset + 84 && v2.length >= v2Offset + 84 && v1[v1Offset + 83] !== undefined) {
+  // Protocol V4: 84-byte descriptors (Uint8Array)
+  if (v2Len === 84) {
     let d = 0;
     for (let i = 0; i < 84; i++) {
       d += BIT_COUNT_8[v1[v1Offset + i] ^ v2[v2Offset + i]];
@@ -33,17 +29,15 @@ const compute = (options) => {
     return d;
   }
 
-  // Protocol V5.1 Path: LSH 128-bit (4 x 32-bit)
-  // We expect v1 and v2 to be slices or offsets of Uint32Array
-  if (v1.length >= v1Offset + 4 && v2.length >= v2Offset + 4 && v1[v1Offset + 3] !== undefined) {
+  // Protocol V5.1: 128-bit LSH (4 x Uint32)
+  if (v2Len === 4) {
     return popcount32(v1[v1Offset] ^ v2[v2Offset]) +
       popcount32(v1[v1Offset + 1] ^ v2[v2Offset + 1]) +
       popcount32(v1[v1Offset + 2] ^ v2[v2Offset + 2]) +
       popcount32(v1[v1Offset + 3] ^ v2[v2Offset + 3]);
   }
 
-  // Protocol V5 Path: LSH 64-bit (2 x 32-bit)
-  // We expect v1 and v2 to be slices or offsets of Uint32Array
+  // Protocol V5/V6: 64-bit LSH (2 x Uint32)
   return popcount32(v1[v1Offset] ^ v2[v2Offset]) +
     popcount32(v1[v1Offset + 1] ^ v2[v2Offset + 1]);
 };

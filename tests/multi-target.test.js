@@ -50,7 +50,7 @@ describe('Multi-Target Support', () => {
 
         // Import the exported data
         const compiler = new OfflineCompiler();
-        const dataList = compiler.importData(buffer);
+        const { dataList } = compiler.importData(buffer);
 
         expect(dataList).toBeDefined();
         expect(Array.isArray(dataList)).toBe(true);
@@ -74,8 +74,8 @@ describe('Multi-Target Support', () => {
 
         // Import and combine
         const compiler = new OfflineCompiler();
-        const dataList1 = compiler.importData(buffer1);
-        const dataList2 = compiler.importData(buffer2);
+        const { dataList: dataList1 } = compiler.importData(buffer1);
+        const { dataList: dataList2 } = compiler.importData(buffer2);
 
         const combined = [...dataList1, ...dataList2];
 
@@ -93,8 +93,8 @@ describe('Multi-Target Support', () => {
         const buffer2 = await compileImageToBuffer(testImagePath);
 
         const compiler = new OfflineCompiler();
-        const dataList1 = compiler.importData(buffer1);
-        const dataList2 = compiler.importData(buffer2);
+        const { dataList: dataList1 } = compiler.importData(buffer1);
+        const { dataList: dataList2 } = compiler.importData(buffer2);
 
         // Simulate what Controller.addImageTargetsFromBuffers does
         const allTrackingData = [];
