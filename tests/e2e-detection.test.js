@@ -27,7 +27,7 @@ describe('End-to-End Detection (Protocol V5.1)', () => {
         await compiler.compileImageTargets(targetImages, () => { });
 
         // 2. Export and Import data (simulating network/storage)
-        console.log('📂 Exporting and importing .mind data...');
+        console.log('📂 Exporting and importing .taar data...');
         const exportedBuffer = compiler.exportData();
         const { dataList: importedData } = compiler.importData(exportedBuffer);
 

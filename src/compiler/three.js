@@ -17,7 +17,7 @@ cssScaleDownMatrix.compose(new Vector3(), new Quaternion(), new Vector3(0.001, 0
 
 const invisibleMatrix = new Matrix4().set(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
 
-export class MindARThree {
+export class TaarThree {
   constructor({
     container,
     imageTargetSrc,
@@ -352,11 +352,11 @@ export class MindARThree {
   }
 }
 
-if (!window.MINDAR) {
-  window.MINDAR = {};
+if (!window.TAAR) {
+  window.TAAR = {};
 }
-if (!window.MINDAR.IMAGE) {
-  window.MINDAR.IMAGE = {};
+if (!window.TAAR.IMAGE) {
+  window.TAAR.IMAGE = {};
 }
 
-window.MINDAR.IMAGE.MindARThree = MindARThree;
+window.TAAR.IMAGE.TaarThree = TaarThree;

@@ -1,7 +1,7 @@
 import { Controller, UI } from "./index.js";
 
 
-AFRAME.registerSystem("mindar-image-system", {
+AFRAME.registerSystem("taar-image-system", {
   container: null,
   video: null,
   processingImage: false,
@@ -214,8 +214,8 @@ AFRAME.registerSystem("mindar-image-system", {
   },
 });
 
-AFRAME.registerComponent("mindar-image", {
-  dependencies: ["mindar-image-system"],
+AFRAME.registerComponent("taar-image", {
+  dependencies: ["taar-image-system"],
 
   schema: {
     imageTargetSrc: { type: "string" },
@@ -232,7 +232,7 @@ AFRAME.registerComponent("mindar-image", {
   },
 
   init: function () {
-    const arSystem = this.el.sceneEl.systems["mindar-image-system"];
+    const arSystem = this.el.sceneEl.systems["taar-image-system"];
 
     arSystem.setup({
       imageTargetSrc: this.data.imageTargetSrc,
@@ -258,8 +258,8 @@ AFRAME.registerComponent("mindar-image", {
   },
 });
 
-AFRAME.registerComponent("mindar-image-target", {
-  dependencies: ["mindar-image-system"],
+AFRAME.registerComponent("taar-image-target", {
+  dependencies: ["taar-image-system"],
 
   schema: {
     targetIndex: { type: "number" },
@@ -268,7 +268,7 @@ AFRAME.registerComponent("mindar-image-target", {
   postMatrix: null, // rescale the anchor to make width of 1 unit = physical width of card
 
   init: function () {
-    const arSystem = this.el.sceneEl.systems["mindar-image-system"];
+    const arSystem = this.el.sceneEl.systems["taar-image-system"];
     arSystem.registerAnchor(this, this.data.targetIndex);
 
     this.invisibleMatrix = new AFRAME.THREE.Matrix4().set(
@@ -336,6 +336,6 @@ then A-Frame will process the webpage *before* the system and components get reg
 Resulting in a blank page. This happens because module loading is deferred. 
 */
 /* if(needsDOMRefresh){
-  console.log("mindar-face-aframe::Refreshing DOM...")
+  console.log("taar-face-aframe::Refreshing DOM...")
   document.body.innerHTML=document.body.innerHTML;
 } */

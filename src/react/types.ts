@@ -1,7 +1,7 @@
 export interface PropsConfig {
   cardId: string;
   targetImageSrc: string;
-  targetMindSrc: string;
+  targetTaarSrc: string;
   videoSrc: string;
   videoWidth: number;
   videoHeight: number;
@@ -26,7 +26,7 @@ export function mapDataToPropsConfig(data: any[]): PropsConfig {
   return {
     cardId: photos?.id || "",
     targetImageSrc: photos?.images?.[0]?.image || "",
-    targetMindSrc: ar?.url || "",
+    targetTaarSrc: ar?.url || "",
     videoSrc: video?.url || "",
     videoWidth: video?.width || 0,
     videoHeight: video?.height || 0,

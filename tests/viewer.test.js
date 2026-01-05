@@ -69,7 +69,7 @@ describe('AR Viewer (Controller)', () => {
     let controller;
     let mockWorker;
     let testImage;
-    let mindData;
+    let taarData;
     let imgWidth, imgHeight;
 
     beforeEach(async () => {
@@ -95,7 +95,7 @@ describe('AR Viewer (Controller)', () => {
 
         await compiler.compileImageTargets(targetImages, (p) => { });
         const buffer = compiler.exportData();
-        mindData = buffer;
+        taarData = buffer;
 
         mockWorker = new MockWorker();
         controller = new Controller({
@@ -104,7 +104,7 @@ describe('AR Viewer (Controller)', () => {
             worker: mockWorker
         });
 
-        await controller.addImageTargetsFromBuffer(mindData);
+        await controller.addImageTargetsFromBuffer(taarData);
     });
 
     it('should match a FULL target image (no crop)', async () => {

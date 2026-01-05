@@ -41,7 +41,7 @@ async function runBenchmark() {
 
     console.log(`\n--- Compilation Metrics ---`);
     console.log(`⏱️ Duration: ${duration}ms`);
-    console.log(`📦 Final Size (Raw .mind): ${sizeKB.toFixed(2)} KB`);
+    console.log(`📦 Final Size (Raw .taar): ${sizeKB.toFixed(2)} KB`);
     console.log(`🗜️ Compressed Size (Gzip): ${compressedKB.toFixed(2)} KB`);
     console.log(`📉 Compression Ratio: ${((1 - compressedKB / sizeKB) * 100).toFixed(1)}%`);
     console.log(`✅ Matching points: ${results[0].matchingData[0].maximaPoints.length + results[0].matchingData[0].minimaPoints.length}`);

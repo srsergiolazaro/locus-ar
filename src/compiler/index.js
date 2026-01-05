@@ -2,10 +2,10 @@ import { OfflineCompiler } from "./offline-compiler.js";
 
 export { OfflineCompiler };
 
-if (!window.MINDAR) {
-  window.MINDAR = {};
+if (!window.TAAR) {
+  window.TAAR = {};
 }
 
-window.MINDAR.IMAGE = {
+window.TAAR.IMAGE = {
   OfflineCompiler,
 };

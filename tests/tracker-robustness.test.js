@@ -20,7 +20,7 @@ const CONFIG = {
 };
 
 describe('Tracker Robustness Evaluation (via Controller)', () => {
-    let mindBuffer;
+    let taarBuffer;
 
     beforeAll(async () => {
         console.log('🔨 Compiling reference target...');
@@ -32,7 +32,7 @@ describe('Tracker Robustness Evaluation (via Controller)', () => {
             data: baseImage.bitmap.data
         }], () => { });
 
-        mindBuffer = compiler.exportData();
+        taarBuffer = compiler.exportData();
         console.log('✅ Target compiled and ready.');
     }, 60000);
 
@@ -67,7 +67,7 @@ describe('Tracker Robustness Evaluation (via Controller)', () => {
                     });
 
                     // 2. Load compiled target
-                    controller.addImageTargetsFromBuffers([mindBuffer]);
+                    controller.addImageTargetsFromBuffers([taarBuffer]);
 
                     // 3. Process image (Detect + Match)
                     // We use DetectorLite directly for FULL image detection (not cropped)
@@ -121,7 +121,7 @@ describe('Tracker Robustness Evaluation (via Controller)', () => {
                         const { width, height } = image.bitmap;
 
                         const controller = new Controller({ inputWidth: width, inputHeight: height });
-                        controller.addImageTargetsFromBuffers([mindBuffer]);
+                        controller.addImageTargetsFromBuffers([taarBuffer]);
 
                         const inputData = new Uint8Array(width * height);
                         image.greyscale();

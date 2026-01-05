@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 /**
- * Helper: Load an image and compile it to a .mind buffer
+ * Helper: Load an image and compile it to a .taar buffer
  */
 async function compileImageToBuffer(imagePath) {
     const compiler = new OfflineCompiler();
@@ -33,7 +33,7 @@ async function compileImageToBuffer(imagePath) {
 describe('Multi-Target Support', () => {
     const testImagePath = path.join(__dirname, 'assets/test-image.png');
 
-    it('should compile the test image to a .mind buffer', async () => {
+    it('should compile the test image to a .taar buffer', async () => {
         console.log('📦 Compiling test image to buffer...');
         const buffer = await compileImageToBuffer(testImagePath);
 

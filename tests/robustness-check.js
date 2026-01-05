@@ -59,11 +59,11 @@ async function runCheck() {
     }], () => { });
     const endBuild = Date.now();
 
-    const mindBuffer = compiler.exportData();
+    const taarBuffer = compiler.exportData();
     const markerW = baseImage.bitmap.width;
     const markerH = baseImage.bitmap.height;
 
-    console.log(`\x1b[1m📦 Target Data Size: \x1b[32m${(mindBuffer.byteLength / 1024).toFixed(2)} KB\x1b[0m`);
+    console.log(`\x1b[1m📦 Target Data Size: \x1b[32m${(taarBuffer.byteLength / 1024).toFixed(2)} KB\x1b[0m`);
     console.log(`⏱️  Build Time: ${endBuild - startBuild}ms\n`);
 
 
@@ -95,7 +95,7 @@ async function runCheck() {
                 inputHeight: firstImg.bitmap.height,
                 debugMode: false
             });
-            controller.addImageTargetsFromBuffers([mindBuffer]);
+            controller.addImageTargetsFromBuffers([taarBuffer]);
 
             for (const file of files) {
                 stats.total++;

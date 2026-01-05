@@ -8,14 +8,14 @@
 
 ## 🌟 Key Features
 
-- 🖼️ **Hyper-Fast Compiler**: Pure JavaScript compiler that generates `.mind` files in **< 3s**.
+- 🖼️ **Hyper-Fast Compiler**: Pure JavaScript compiler that generates `.taar` files in **< 3s**.
 - ⚡ **No TensorFlow Dependency**: No TFJS at all. Works natively in any JS environment (Node, Browser, Workers).
 - 🚀 **Protocol V7 (Moonshot)**: 
   - **4-bit Packed Tracking Data**: Grayscale images are compressed to 4-bit depth, slashing file size.
   - **64-bit LSH Descriptors**: Optimized Locality Sensitive Hashing for descriptors.
 - 🧵 **High-Precision Tracking**: Now using **Float32** coordinate precision for rock-solid tracking stability.
 - 📦 **Framework Agnostic**: Includes wrappers for **A-Frame**, **Three.js**, and a raw **Controller** for custom engines.
-- 📉 **Ultra-Compact Files**: Output `.mind` files are **~50KB** (vs ~380KB+ previously).
+- 📉 **Ultra-Compact Files**: Output `.taar` files are **~50KB** (vs ~380KB+ previously).
 
 ---
 
@@ -32,7 +32,7 @@ npm install @srsergio/taptapp-ar
 | Metric | Official MindAR | TapTapp AR V7 | Improvement |
 | :--- | :--- | :--- | :--- |
 | **Compilation Time** | ~23.50s | **~2.61s** | 🚀 **~9x Faster** |
-| **Output Size (.mind)** | ~770 KB | **~50 KB** | 📉 **93% Smaller** |
+| **Output Size (.taar)** | ~770 KB | **~50 KB** | 📉 **93% Smaller** |
 | **Descriptor Format** | 84-byte Float | **64-bit LSH** | 🧠 **Massive Data Saving** |
 | **Tracking Data** | 8-bit Gray | **4-bit Packed** | 📦 **50% Data Saving** |
 | **Dependency Size** | ~20MB (TFJS) | **< 100KB** | 📦 **99% Smaller Bundle** |
@@ -84,9 +84,9 @@ The easiest way to use TapTapp AR in a web app:
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="path/to/@srsergio/taptapp-ar/dist/index.js"></script>
 
-<a-scene mindar-image="imageTargetSrc: ./targets.mind;">
+<a-scene taar-image="imageTargetSrc: ./targets.taar;">
   <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-  <a-entity mindar-image-target="targetIndex: 0">
+  <a-entity taar-image-target="targetIndex: 0">
     <a-plane position="0 0 0" height="0.552" width="1"></a-plane>
   </a-entity>
 </a-scene>
@@ -96,19 +96,19 @@ The easiest way to use TapTapp AR in a web app:
 For custom Three.js applications:
 
 ```javascript
-import { MindARThree } from '@srsergio/taptapp-ar';
+import { TaarThree } from '@srsergio/taptapp-ar';
 
-const mindarThree = new MindARThree({
+const taarThree = new TaarThree({
   container: document.querySelector("#container"),
-  imageTargetSrc: './targets.mind',
+  imageTargetSrc: './targets.taar',
 });
 
-const {renderer, scene, camera} = mindarThree;
+const {renderer, scene, camera} = taarThree;
 
-const anchor = mindarThree.addAnchor(0);
+const anchor = taarThree.addAnchor(0);
 // Add your 3D models to anchor.group
 
-await mindarThree.start();
+await taarThree.start();
 renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
 });
@@ -154,10 +154,10 @@ const controller = new Controller({
 });
 
 // Single target
-await controller.addImageTargets('./targets.mind');
+await controller.addImageTargets('./targets.taar');
 
-// OR multiple targets from different .mind files
-await controller.addImageTargets(['./target1.mind', './target2.mind', './target3.mind']);
+// OR multiple targets from different .taar files
+await controller.addImageTargets(['./target1.taar', './target2.taar', './target3.taar']);
 controller.processVideo(videoElement); // Starts the internal RAF loop
 ```
 
@@ -166,7 +166,7 @@ Use this for "Snap and Detect" features without a continuous video loop:
 
 ```javascript
 const controller = new Controller({ inputWidth: 1024, inputHeight: 1024 });
-await controller.addImageTargets('./targets.mind');
+await controller.addImageTargets('./targets.taar');
 
 // 1. Detect features in a static image
 const { featurePoints } = await controller.detect(canvasElement);
@@ -187,7 +187,7 @@ import { SimpleAR } from '@srsergio/taptapp-ar';
 
 const ar = new SimpleAR({
   container: document.getElementById('ar-container'),
-  targetSrc: './my-target.mind',  // Single URL or array: ['./a.mind', './b.mind']
+  targetSrc: './my-target.taar',  // Single URL or array: ['./a.taar', './b.taar']
   overlay: document.getElementById('my-overlay'),
   onFound: ({ targetIndex }) => console.log(`Target ${targetIndex} detected! 🎯`),
   onLost: ({ targetIndex }) => console.log(`Target ${targetIndex} lost 👋`)
@@ -211,7 +211,7 @@ ar.stop();
   
   const ar = new SimpleAR({
     container: document.getElementById('ar-container'),
-    targetSrc: './targets.mind',
+    targetSrc: './targets.taar',
     overlay: document.getElementById('my-overlay'),
   });
   
@@ -223,7 +223,7 @@ ar.stop();
 | Option | Required | Description |
 | :--- | :--- | :--- |
 | `container` | ✅ | DOM element where video + overlay render |
-| `targetSrc` | ✅ | URL to your `.mind` file |
+| `targetSrc` | ✅ | URL to your `.taar` file |
 | `overlay` | ✅ | DOM element to position on the target |
 | `onFound` | ❌ | Callback when target is detected |
 | `onLost` | ❌ | Callback when target is lost |

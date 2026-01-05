@@ -349,7 +349,7 @@ export class OfflineCompiler {
 
         const version = content.v || 0;
         if (version !== CURRENT_VERSION && version !== 5) {
-            console.error(`Incompatible .mind version: ${version}. This engine only supports Protocol V5/V6.`);
+            console.error(`Incompatible .taar version: ${version}. This engine only supports Protocol V5/V6.`);
             return { version, dataList: [] };
         }
 
