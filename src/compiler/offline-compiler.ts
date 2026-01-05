@@ -126,9 +126,14 @@ export class OfflineCompiler {
             return Promise.all(wrappedPromises);
         }
 
-        // Fallback or non-worker implementation omitted for brevity, 
-        // focus is on the optimized worker path.
-        throw new Error("Optimized Single-Pass compilation requires Workers.");
+        // Fallback or non-worker implementation: run match and track sequentially
+        const matchingResults = await this._compileMatch(targetImages, (p) => progressCallback(p * 0.5));
+        const trackingResults = await this._compileTrack(targetImages, (p) => progressCallback(50 + p * 0.5));
+
+        return targetImages.map((_, i) => ({
+            matchingData: matchingResults[i],
+            trackingData: trackingResults[i]
+        }));
     }
 
     async _compileMatch(targetImages: any[], progressCallback: (p: number) => void) {
