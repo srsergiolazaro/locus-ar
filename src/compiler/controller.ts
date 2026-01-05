@@ -233,7 +233,7 @@ class Controller {
             lastModelViewTransform,
             targetIndex,
         );
-        if (worldCoords.length < 10) return null; // Increased from 6 to 10 for better noise rejection
+        if (worldCoords.length < 8) return null; // Resynced with Matcher (8 points) to allow initial detection
         const modelViewTransform = await this._workerTrackUpdate(lastModelViewTransform, {
             worldCoords,
             screenCoords,

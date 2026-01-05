@@ -32,20 +32,19 @@ class CropDetector {
 
   detectMoving(input) {
     const imageData = input;
+    if (!this.frameCounter) this.frameCounter = 0;
+    this.frameCounter++;
 
-    // 🚀 MOONSHOT: High Frequency Global Scan
-    // Scan full screen every 2 frames when searching to guarantee instant recovery
-    if (this.lastRandomIndex % 2 === 0) {
-      this.lastRandomIndex = (this.lastRandomIndex + 1) % 25;
+    // Scan full screen every 2 frames
+    if (this.frameCounter % 2 === 0) {
       return this._detectGlobal(imageData);
     }
 
-    // Local crops (25 grid)
+    // Local crops: ensure we visit every single cell
     const gridSize = 5;
-    const idx = (this.lastRandomIndex - 1) % (gridSize * gridSize);
-    // ... rest of logic remains but we hit it less often because global scan is more successful
-    const dx = idx % gridSize;
-    const dy = Math.floor(idx / gridSize);
+    const dx = this.lastRandomIndex % gridSize;
+    const dy = Math.floor(this.lastRandomIndex / gridSize);
+
     const stepX = this.cropSize / 3;
     const stepY = this.cropSize / 3;
 
@@ -55,7 +54,7 @@ class CropDetector {
     startX = Math.max(0, Math.min(this.width - this.cropSize - 1, startX));
     startY = Math.max(0, Math.min(this.height - this.cropSize - 1, startY));
 
-    this.lastRandomIndex = (this.lastRandomIndex + 1) % 25;
+    this.lastRandomIndex = (this.lastRandomIndex + 1) % (gridSize * gridSize);
     return this._detect(imageData, startX, startY);
   }
 
@@ -64,14 +63,12 @@ class CropDetector {
     const scaleX = this.width / this.cropSize;
     const scaleY = this.height / this.cropSize;
 
-    // Better sampling: avoid missing edges by jumping too much
+    // Use sharp sampling for better descriptors
     for (let y = 0; y < this.cropSize; y++) {
       const srcY = Math.floor(y * scaleY) * this.width;
       const dstY = y * this.cropSize;
       for (let x = 0; x < this.cropSize; x++) {
-        // Average slightly to preserve gradients
-        const sx = Math.floor(x * scaleX);
-        croppedData[dstY + x] = (imageData[srcY + sx] + imageData[srcY + sx + 1]) * 0.5;
+        croppedData[dstY + x] = imageData[srcY + Math.floor(x * scaleX)];
       }
     }
 

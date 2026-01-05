@@ -137,7 +137,7 @@ class Tracker {
     }
 
     // 2.1 Spatial distribution check: Avoid getting stuck in corners/noise
-    if (screenCoords.length >= 10) {
+    if (screenCoords.length >= 8) {
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const p of screenCoords) {
         if (p.x < minX) minX = p.x; if (p.y < minY) minY = p.y;
