@@ -1,6 +1,6 @@
 {
     "name": "@srsergio/taptapp-ar",
-    "version": "1.0.51",
+    "version": "1.0.52",
     "description": "Ultra-fast, lightweight Augmented Reality Image Tracking SDK for the web. Features an optimized offline compiler, React components, and compatibility with Three.js/A-Frame. No heavy ML frameworks required.",
     "keywords": [
         "web-ar",
