@@ -131,12 +131,57 @@ ar.stop();
 | `overlay` | ✅ | DOM element to position on the target |
 | `onFound` | ❌ | Callback when target is detected |
 | `onLost` | ❌ | Callback when target is lost |
-| `onUpdate` | ❌ | Called each frame with `{ targetIndex, worldMatrix }` |
-| `cameraConfig` | ❌ | Camera constraints (default: `{ facingMode: 'environment', width: 1280, height: 720 }`) |
+| `onUpdate` | ❌ | Called cada frame con `{ targetIndex, worldMatrix }` |
+| `cameraConfig` | ❌ | Config de cámara (por defecto: `{ facingMode: 'environment', width: 1280, height: 720 }`) |
 
 ---
 
-### 2. Raw Controller (Advanced & Custom Engines)
+### 2. React Integration (Vite & SSR Safe) ⚛️
+
+The fastest and most modern way to build AR apps with React. It supports **Code Splitting** and is **100% SSR-Safe** (Next.js, Astro, Remix).
+
+#### 🚀 Quick Start: `<TaptappAR />`
+Drop the component into your app. It handles camera permissions, scanning animations, and video/image overlays automatically.
+
+```tsx
+import { TaptappAR, mapDataToPropsConfig } from '@srsergio/taptapp-ar';
+
+const MyARComponent = ({ data }) => {
+  // mapDataToPropsConfig helps you format your data for the component
+  const config = mapDataToPropsConfig(data);
+
+  return (
+    <div style={{ width: '100vw', height: '100vh' }}>
+      <TaptappAR config={config} />
+    </div>
+  );
+};
+```
+
+#### 🛠️ Custom UI: `useAR()` Hook
+If you want to build your own UI while keeping the powerful tracking logic:
+
+```tsx
+import { useAR } from '@srsergio/taptapp-ar';
+
+const CustomAR = ({ config }) => {
+  const { containerRef, overlayRef, status, toggleVideo } = useAR(config);
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }} onClick={toggleVideo}>
+      {/* Custom Scanning UI */}
+      {status === 'scanning' && <div className="my-loader">Scanning...</div>}
+      
+      {/* Video Overlay */}
+      <video ref={overlayRef} src={config.videoSrc} loop muted playsInline />
+    </div>
+  );
+};
+```
+
+---
+
+### 3. Raw Controller (Advanced & Custom Engines)
 The `Controller` is the core engine of TapTapp AR. You can use it to build your own AR components or integrate tracking into custom 3D engines.
 
 #### ⚙️ Controller Configuration
