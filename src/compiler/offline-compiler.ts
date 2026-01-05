@@ -11,7 +11,6 @@ import { extractTrackingFeatures } from "./tracker/extract-utils.js";
 import { DetectorLite } from "./detector/detector-lite.js";
 import { build as hierarchicalClusteringBuild } from "./matching/hierarchical-clustering.js";
 import * as msgpack from "@msgpack/msgpack";
-import { WorkerPool } from "./utils/worker-pool.js";
 
 // Detect environment
 const isNode = typeof process !== "undefined" &&
@@ -22,40 +21,9 @@ const CURRENT_VERSION = 7; // Protocol v7: Moonshot - 4-bit Packed Tracking Data
 
 export class OfflineCompiler {
     data: any = null;
-    workerPool: WorkerPool | null = null;
 
     constructor() {
-        // Workers only in Node.js
-        if (!isNode) {
-            console.log("🌐 OfflineCompiler: Browser mode (no workers)");
-        }
-    }
-
-    async _initNodeWorkers() {
-        try {
-            const pathModule = "path";
-            const urlModule = "url";
-            const osModule = "os";
-            const workerThreadsModule = "node:worker_threads";
-
-            const [path, url, os, { Worker }] = await Promise.all([
-                import(/* @vite-ignore */ pathModule),
-                import(/* @vite-ignore */ urlModule),
-                import(/* @vite-ignore */ osModule),
-                import(/* @vite-ignore */ workerThreadsModule)
-            ]);
-
-            const __filename = url.fileURLToPath(import.meta.url);
-            const __dirname = path.dirname(__filename);
-            const workerPath = path.join(__dirname, "node-worker.js");
-
-            // Limit workers to avoid freezing system
-            const numWorkers = Math.min(os.cpus().length, 4);
-
-            this.workerPool = new WorkerPool(workerPath, numWorkers, Worker);
-        } catch (e) {
-            console.log("⚡ OfflineCompiler: Running without workers (initialization failed)", e);
-        }
+        console.log("⚡ OfflineCompiler: Main thread mode (no workers)");
     }
 
     async compileImageTargets(images: any[], progressCallback: (p: number) => void) {
@@ -108,25 +76,7 @@ export class OfflineCompiler {
     }
 
     async _compileTarget(targetImages: any[], progressCallback: (p: number) => void) {
-        if (isNode) await this._initNodeWorkers();
-
-        if (this.workerPool) {
-            const progressMap = new Float32Array(targetImages.length);
-            const wrappedPromises = targetImages.map((targetImage: any, index: number) => {
-                return this.workerPool!.runTask({
-                    type: 'compile-all', // 🚀 MOONSHOT: Combined task
-                    targetImage,
-                    onProgress: (p: number) => {
-                        progressMap[index] = p;
-                        const sum = progressMap.reduce((a, b) => a + b, 0);
-                        progressCallback(sum / targetImages.length);
-                    }
-                });
-            });
-            return Promise.all(wrappedPromises);
-        }
-
-        // Fallback or non-worker implementation: run match and track sequentially
+        // Run match and track sequentially to match browser behavior exactly
         const matchingResults = await this._compileMatch(targetImages, (p) => progressCallback(p * 0.5));
         const trackingResults = await this._compileTrack(targetImages, (p) => progressCallback(50 + p * 0.5));
 
@@ -139,27 +89,6 @@ export class OfflineCompiler {
     async _compileMatch(targetImages: any[], progressCallback: (p: number) => void) {
         const percentPerImage = 100 / targetImages.length;
         let currentPercent = 0;
-
-        if (isNode) await this._initNodeWorkers();
-        if (this.workerPool) {
-            const progressMap = new Float32Array(targetImages.length);
-
-            const wrappedPromises = targetImages.map((targetImage: any, index: number) => {
-                return this.workerPool!.runTask({
-                    type: 'match',
-                    targetImage,
-                    percentPerImage,
-                    basePercent: 0,
-                    onProgress: (p: number) => {
-                        progressMap[index] = p;
-                        const sum = progressMap.reduce((a, b) => a + b, 0);
-                        progressCallback(sum);
-                    }
-                });
-            });
-
-            return Promise.all(wrappedPromises);
-        }
 
         const results = [];
         for (let i = 0; i < targetImages.length; i++) {
@@ -200,24 +129,6 @@ export class OfflineCompiler {
     async _compileTrack(targetImages: any[], progressCallback: (p: number) => void) {
         const percentPerImage = 100 / targetImages.length;
         let currentPercent = 0;
-
-        if (this.workerPool) {
-            const progressMap = new Float32Array(targetImages.length);
-            const wrappedPromises = targetImages.map((targetImage: any, index: number) => {
-                return this.workerPool!.runTask({
-                    type: 'compile',
-                    targetImage,
-                    percentPerImage,
-                    basePercent: 0,
-                    onProgress: (p: number) => {
-                        progressMap[index] = p;
-                        const sum = progressMap.reduce((a, b) => a + b, 0);
-                        progressCallback(sum);
-                    }
-                });
-            });
-            return Promise.all(wrappedPromises);
-        }
 
         const results = [];
         for (let i = 0; i < targetImages.length; i++) {
@@ -480,9 +391,7 @@ export class OfflineCompiler {
     }
 
     async destroy() {
-        if (this.workerPool) {
-            await this.workerPool.destroy();
-        }
+        // No workers to destroy
     }
 
 

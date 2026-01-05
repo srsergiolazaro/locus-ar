@@ -169,6 +169,9 @@ export const TaptappAR: React.FC<TaptappARProps> = ({
                     display: block;
                     width: 100%;
                     height: auto;
+                    opacity: 0;
+                    pointer-events: none;
+                    transition: opacity 0.3s ease;
                 }
             `}</style>
         </div>

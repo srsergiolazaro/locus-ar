@@ -52,6 +52,7 @@ export const useAR = (config: ARConfig): UseARReturn => {
                     targetSrc: config.targetTaarSrc,
                     overlay: overlayRef.current!,
                     scale: config.scale,
+                    debug: false,
                     onFound: async ({ targetIndex }) => {
                         console.log(`🎯 Target ${targetIndex} detected!`);
                         if (!isMounted) return;
