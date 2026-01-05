@@ -214,29 +214,25 @@ class Tracker {
         continue;
       }
 
-      // Search in projected image
-      for (let sy = -searchOneSize; sy <= searchOneSize; sy += searchGap) {
+      // 🚀 MOONSHOT: Coarse-to-Fine Search for MAXIMUM FPS
+      // Step 1: Coarse search (Gap 4)
+      const coarseGap = 4;
+      for (let sy = -searchOneSize; sy <= searchOneSize; sy += coarseGap) {
         const cy = sCenterY + sy;
         if (cy < templateOneSize || cy >= markerHeight - templateOneSize) continue;
 
-        for (let sx = -searchOneSize; sx <= searchOneSize; sx += searchGap) {
+        for (let sx = -searchOneSize; sx <= searchOneSize; sx += coarseGap) {
           const cx = sCenterX + sx;
           if (cx < templateOneSize || cx >= markerWidth - templateOneSize) continue;
 
-          let sumI = 0;
-          let sumI2 = 0;
-          let sumIT = 0;
-
+          let sumI = 0, sumI2 = 0, sumIT = 0;
           for (let ty = -templateOneSize; ty <= templateOneSize; ty++) {
             const rowOffset = (cy + ty) * markerWidth;
             const tRowOffset = (ty + templateOneSize) * templateSize;
             for (let tx = -templateOneSize; tx <= templateOneSize; tx++) {
               const valI = projectedImage[rowOffset + (cx + tx)];
               const valT = templateData[tRowOffset + (tx + templateOneSize)];
-
-              sumI += valI;
-              sumI2 += valI * valI;
-              sumIT += valI * valT;
+              sumI += valI; sumI2 += valI * valI; sumIT += valI * valT;
             }
           }
 
@@ -248,6 +244,41 @@ class Tracker {
             bestSim = sim;
             bestX = cx / scale;
             bestY = cy / scale;
+          }
+        }
+      }
+
+      // Step 2: Fine refinement (Gap 1) only around the best coarse match
+      if (bestSim > AR2_SIM_THRESH) {
+        const fineCenterX = (bestX * scale) | 0;
+        const fineCenterY = (bestY * scale) | 0;
+        const fineSearch = coarseGap;
+
+        for (let sy = -fineSearch; sy <= fineSearch; sy++) {
+          const cy = fineCenterY + sy;
+          if (cy < templateOneSize || cy >= markerHeight - templateOneSize) continue;
+          for (let sx = -fineSearch; sx <= fineSearch; sx++) {
+            const cx = fineCenterX + sx;
+            if (cx < templateOneSize || cx >= markerWidth - templateOneSize) continue;
+
+            let sumI = 0, sumI2 = 0, sumIT = 0;
+            for (let ty = -templateOneSize; ty <= templateOneSize; ty++) {
+              const rowOffset = (cy + ty) * markerWidth;
+              const tRowOffset = (ty + templateOneSize) * templateSize;
+              for (let tx = -templateOneSize; tx <= templateOneSize; tx++) {
+                const valI = projectedImage[rowOffset + (cx + tx)];
+                const valT = templateData[tRowOffset + (tx + templateOneSize)];
+                sumI += valI; sumI2 += valI * valI; sumIT += valI * valT;
+              }
+            }
+            const varI = Math.sqrt(Math.max(0, sumI2 - (sumI * sumI) * oneOverNPixels));
+            if (varI < 0.0001) continue;
+            const sim = (sumIT - (sumI * sumT) * oneOverNPixels) / (varI * varT);
+            if (sim > bestSim) {
+              bestSim = sim;
+              bestX = cx / scale;
+              bestY = cy / scale;
+            }
           }
         }
       }

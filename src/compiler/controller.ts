@@ -19,7 +19,7 @@ const getControllerWorker = async () => {
 };
 ControllerWorker = await getControllerWorker();
 
-const DEFAULT_FILTER_CUTOFF = 1.0;
+const DEFAULT_FILTER_CUTOFF = 0.5;
 const DEFAULT_FILTER_BETA = 0.1;
 const DEFAULT_WARMUP_TOLERANCE = 8;
 const DEFAULT_MISS_TOLERANCE = 2;

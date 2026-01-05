@@ -163,7 +163,7 @@ class SimpleAR {
             this.lastMatrix = worldMatrix;
 
             if (!this.filters[targetIndex]) {
-                this.filters[targetIndex] = new OneEuroFilter({ minCutOff: 1.0, beta: 0.1 });
+                this.filters[targetIndex] = new OneEuroFilter({ minCutOff: 0.8, beta: 0.2 });
             }
 
             const flatMVT = [
