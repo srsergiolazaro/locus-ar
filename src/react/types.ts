@@ -3,9 +3,11 @@ export interface ARConfig {
   targetImageSrc: string;
   targetTaarSrc: string;
   videoSrc: string;
+  overlaySrc: string; // Alias for preloading/compatibility
   videoWidth: number;
   videoHeight: number;
   scale: number;
+  overlayType: "video" | "image";
 }
 
 export interface ARDataItem {
@@ -29,8 +31,10 @@ export function mapDataToPropsConfig(data: ARDataItem[]): ARConfig {
     targetImageSrc: photos?.images?.[0]?.image || "",
     targetTaarSrc: ar?.url || "",
     videoSrc: overlay?.url || "",
+    overlaySrc: overlay?.url || "",
     videoWidth: overlay?.width || 0,
     videoHeight: overlay?.height || 0,
     scale: overlay?.scale || 1,
+    overlayType: overlay?.type === "videoNative" ? "video" : "image",
   };
 }
