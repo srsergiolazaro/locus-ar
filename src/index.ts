@@ -1,4 +1,4 @@
-export * from "./react/types.js";
+export { ARConfig, ARDataItem, mapDataToPropsConfig } from "./react/types.js";
 export * from "./react/use-ar.js";
 export * from "./react/TaptappAR.js";
 export * from "./compiler/offline-compiler.js";

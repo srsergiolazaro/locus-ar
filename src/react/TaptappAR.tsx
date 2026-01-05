@@ -1,9 +1,9 @@
 import React, { useMemo } from "react";
 import { useAR } from "./use-ar.js";
-import type { PropsConfig } from "./types.js";
+import type { ARConfig } from "./types.js";
 
 export interface TaptappARProps {
-    config: PropsConfig;
+    config: ARConfig;
     className?: string;
     showScanningOverlay?: boolean;
     showErrorOverlay?: boolean;

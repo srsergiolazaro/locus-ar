@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { PropsConfig } from "./types.js";
+import type { ARConfig } from "./types.js";
 import type { SimpleAR as SimpleARType } from "../compiler/simple-ar.js";
 
 export type ARStatus = "scanning" | "tracking" | "error";
@@ -12,7 +12,7 @@ export interface UseARReturn {
     toggleVideo: () => Promise<void>;
 }
 
-export const useAR = (config: PropsConfig): UseARReturn => {
+export const useAR = (config: ARConfig): UseARReturn => {
     const containerRef = useRef<HTMLDivElement>(null);
     const overlayRef = useRef<HTMLVideoElement | HTMLImageElement>(null);
     const [status, setStatus] = useState<ARStatus>("scanning");

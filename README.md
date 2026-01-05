@@ -147,7 +147,7 @@ Drop the component into your app. It handles camera permissions, scanning animat
 import { TaptappAR, mapDataToPropsConfig } from '@srsergio/taptapp-ar';
 
 const MyARComponent = ({ data }) => {
-  // mapDataToPropsConfig helps you format your data for the component
+  // Use mapDataToPropsConfig to convert your raw data into ARConfig
   const config = mapDataToPropsConfig(data);
 
   return (

@@ -1,4 +1,4 @@
-export interface PropsConfig {
+export interface ARConfig {
   cardId: string;
   targetImageSrc: string;
   targetTaarSrc: string;
@@ -8,7 +8,7 @@ export interface PropsConfig {
   scale: number;
 }
 
-export interface DataItem {
+export interface ARDataItem {
   id: string;
   type: "photos" | "videoNative" | "ar";
   images?: { image: string; fileId: string }[];
@@ -18,7 +18,7 @@ export interface DataItem {
   height?: number;
 }
 
-export function mapDataToPropsConfig(data: any[]): PropsConfig {
+export function mapDataToPropsConfig(data: any[]): ARConfig {
   const photos = data.find((item) => item.type === "photos");
   const video = data.find((item) => item.type === "videoNative");
   const ar = data.find((item) => item.type === "ar");
