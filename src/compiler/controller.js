@@ -382,203 +382,203 @@ class Controller {
                 this.onUpdate({ type: "updateMatrix", targetIndex: i, worldMatrix: clone, modelViewTransform: trackingState.currentModelViewTransform });
             }
           }
-
-          this.onUpdate && this.onUpdate({ type: "processDone" });
-
-          // Use requestAnimationFrame if available, otherwise just wait briefly
-          if (typeof requestAnimationFrame !== "undefined") {
-            await new Promise(requestAnimationFrame);
-          } else {
-            await new Promise(resolve => setTimeout(resolve, 16));
-          }
         }
-      };
-      startProcessing();
-    }
+        this.onUpdate && this.onUpdate({ type: "processDone" });
 
-    stopProcessVideo() {
-      this.processingVideo = false;
-    }
+        // Use requestAnimationFrame if available, otherwise just wait briefly
+        if (typeof requestAnimationFrame !== "undefined") {
+          await new Promise(requestAnimationFrame);
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 16));
+        }
+      }
+    };
+    startProcessing();
+  }
+
+  stopProcessVideo() {
+    this.processingVideo = false;
+  }
 
   async detect(input) {
-      const inputData = this.inputLoader.loadInput(input);
-      const { featurePoints, debugExtra } = this.cropDetector.detect(inputData);
-      return { featurePoints, debugExtra };
-    }
+    const inputData = this.inputLoader.loadInput(input);
+    const { featurePoints, debugExtra } = this.cropDetector.detect(inputData);
+    return { featurePoints, debugExtra };
+  }
 
   async match(featurePoints, targetIndex) {
-      const { targetIndex: matchedTargetIndex, modelViewTransform, screenCoords, worldCoords, debugExtra } = await this._workerMatch(featurePoints, [
-        targetIndex,
-      ]);
-      return { targetIndex: matchedTargetIndex, modelViewTransform, screenCoords, worldCoords, debugExtra };
-    }
+    const { targetIndex: matchedTargetIndex, modelViewTransform, screenCoords, worldCoords, debugExtra } = await this._workerMatch(featurePoints, [
+      targetIndex,
+    ]);
+    return { targetIndex: matchedTargetIndex, modelViewTransform, screenCoords, worldCoords, debugExtra };
+  }
 
   async track(input, modelViewTransform, targetIndex) {
-      const inputData = this.inputLoader.loadInput(input);
-      const result = this.tracker.track(inputData, modelViewTransform, targetIndex);
-      return result;
-    }
+    const inputData = this.inputLoader.loadInput(input);
+    const result = this.tracker.track(inputData, modelViewTransform, targetIndex);
+    return result;
+  }
 
   async trackUpdate(modelViewTransform, trackFeatures) {
-      if (trackFeatures.worldCoords.length < 4) return null;
-      const modelViewTransform2 = await this._workerTrackUpdate(modelViewTransform, trackFeatures);
-      return modelViewTransform2;
-    }
+    if (trackFeatures.worldCoords.length < 4) return null;
+    const modelViewTransform2 = await this._workerTrackUpdate(modelViewTransform, trackFeatures);
+    return modelViewTransform2;
+  }
 
-    _workerMatch(featurePoints, targetIndexes) {
-      return new Promise((resolve) => {
-        // If no worker available, process on main thread
-        if (!this.worker) {
-          this._matchOnMainThread(featurePoints, targetIndexes).then(resolve);
-          return;
-        }
+  _workerMatch(featurePoints, targetIndexes) {
+    return new Promise((resolve) => {
+      // If no worker available, process on main thread
+      if (!this.worker) {
+        this._matchOnMainThread(featurePoints, targetIndexes).then(resolve);
+        return;
+      }
 
-        this.workerMatchDone = (data) => {
-          resolve({
-            targetIndex: data.targetIndex,
-            modelViewTransform: data.modelViewTransform,
-            screenCoords: data.screenCoords,
-            worldCoords: data.worldCoords,
-            debugExtra: data.debugExtra,
-          });
-        };
-        this.worker.postMessage({ type: "match", featurePoints: featurePoints, targetIndexes });
-      });
-    }
+      this.workerMatchDone = (data) => {
+        resolve({
+          targetIndex: data.targetIndex,
+          modelViewTransform: data.modelViewTransform,
+          screenCoords: data.screenCoords,
+          worldCoords: data.worldCoords,
+          debugExtra: data.debugExtra,
+        });
+      };
+      this.worker.postMessage({ type: "match", featurePoints: featurePoints, targetIndexes });
+    });
+  }
 
   async _matchOnMainThread(featurePoints, targetIndexes) {
-      // Lazy initialize Matcher and Estimator for main thread
-      if (!this.mainThreadMatcher) {
-        const { Matcher } = await import("./matching/matcher.js");
-        const { Estimator } = await import("./estimation/estimator.js");
-        this.mainThreadMatcher = new Matcher(this.inputWidth, this.inputHeight, this.debugMode);
-        this.mainThreadEstimator = new Estimator(this.projectionTransform);
-      }
+    // Lazy initialize Matcher and Estimator for main thread
+    if (!this.mainThreadMatcher) {
+      const { Matcher } = await import("./matching/matcher.js");
+      const { Estimator } = await import("./estimation/estimator.js");
+      this.mainThreadMatcher = new Matcher(this.inputWidth, this.inputHeight, this.debugMode);
+      this.mainThreadEstimator = new Estimator(this.projectionTransform);
+    }
 
-      let matchedTargetIndex = -1;
-      let matchedModelViewTransform = null;
-      let matchedScreenCoords = null;
-      let matchedWorldCoords = null;
-      let matchedDebugExtra = null;
+    let matchedTargetIndex = -1;
+    let matchedModelViewTransform = null;
+    let matchedScreenCoords = null;
+    let matchedWorldCoords = null;
+    let matchedDebugExtra = null;
 
-      for (let i = 0; i < targetIndexes.length; i++) {
-        const matchingIndex = targetIndexes[i];
+    for (let i = 0; i < targetIndexes.length; i++) {
+      const matchingIndex = targetIndexes[i];
 
-        const { keyframeIndex, screenCoords, worldCoords, debugExtra } = this.mainThreadMatcher.matchDetection(
-          this.matchingDataList[matchingIndex],
-          featurePoints,
-        );
-        matchedDebugExtra = debugExtra;
+      const { keyframeIndex, screenCoords, worldCoords, debugExtra } = this.mainThreadMatcher.matchDetection(
+        this.matchingDataList[matchingIndex],
+        featurePoints,
+      );
+      matchedDebugExtra = debugExtra;
 
-        if (keyframeIndex !== -1) {
-          const modelViewTransform = this.mainThreadEstimator.estimate({ screenCoords, worldCoords });
+      if (keyframeIndex !== -1) {
+        const modelViewTransform = this.mainThreadEstimator.estimate({ screenCoords, worldCoords });
 
-          if (modelViewTransform) {
-            matchedTargetIndex = matchingIndex;
-            matchedModelViewTransform = modelViewTransform;
-            matchedScreenCoords = screenCoords;
-            matchedWorldCoords = worldCoords;
-          }
-          break;
+        if (modelViewTransform) {
+          matchedTargetIndex = matchingIndex;
+          matchedModelViewTransform = modelViewTransform;
+          matchedScreenCoords = screenCoords;
+          matchedWorldCoords = worldCoords;
         }
+        break;
+      }
+    }
+
+    return {
+      targetIndex: matchedTargetIndex,
+      modelViewTransform: matchedModelViewTransform,
+      screenCoords: matchedScreenCoords,
+      worldCoords: matchedWorldCoords,
+      debugExtra: matchedDebugExtra,
+    };
+  }
+
+  _workerTrackUpdate(modelViewTransform, trackingFeatures) {
+    return new Promise((resolve) => {
+      // If no worker available, process on main thread
+      if (!this.worker) {
+        this._trackUpdateOnMainThread(modelViewTransform, trackingFeatures).then(resolve);
+        return;
       }
 
-      return {
-        targetIndex: matchedTargetIndex,
-        modelViewTransform: matchedModelViewTransform,
-        screenCoords: matchedScreenCoords,
-        worldCoords: matchedWorldCoords,
-        debugExtra: matchedDebugExtra,
+      this.workerTrackDone = (data) => {
+        resolve(data.modelViewTransform);
       };
-    }
-
-    _workerTrackUpdate(modelViewTransform, trackingFeatures) {
-      return new Promise((resolve) => {
-        // If no worker available, process on main thread
-        if (!this.worker) {
-          this._trackUpdateOnMainThread(modelViewTransform, trackingFeatures).then(resolve);
-          return;
-        }
-
-        this.workerTrackDone = (data) => {
-          resolve(data.modelViewTransform);
-        };
-        const { worldCoords, screenCoords } = trackingFeatures;
-        this.worker.postMessage({
-          type: "trackUpdate",
-          modelViewTransform,
-          worldCoords,
-          screenCoords,
-        });
-      });
-    }
-
-  async _trackUpdateOnMainThread(modelViewTransform, trackingFeatures) {
-      // Lazy initialize Estimator for main thread
-      if (!this.mainThreadEstimator) {
-        const { Estimator } = await import("./estimation/estimator.js");
-        this.mainThreadEstimator = new Estimator(this.projectionTransform);
-      }
-
       const { worldCoords, screenCoords } = trackingFeatures;
-      const finalModelViewTransform = this.mainThreadEstimator.refineEstimate({
-        initialModelViewTransform: modelViewTransform,
+      this.worker.postMessage({
+        type: "trackUpdate",
+        modelViewTransform,
         worldCoords,
         screenCoords,
       });
-      return finalModelViewTransform;
-    }
-
-    _glModelViewMatrix(modelViewTransform, targetIndex) {
-      if (!modelViewTransform) return null;
-      const height = this.markerDimensions[targetIndex][1];
-
-      const openGLWorldMatrix = [
-        modelViewTransform[0][0],
-        -modelViewTransform[1][0],
-        -modelViewTransform[2][0],
-        0,
-        -modelViewTransform[0][1],
-        modelViewTransform[1][1],
-        modelViewTransform[2][1],
-        0,
-        -modelViewTransform[0][2],
-        modelViewTransform[1][2],
-        modelViewTransform[2][2],
-        0,
-        modelViewTransform[0][1] * height + modelViewTransform[0][3],
-        -(modelViewTransform[1][1] * height + modelViewTransform[1][3]),
-        -(modelViewTransform[2][1] * height + modelViewTransform[2][3]),
-        1,
-      ];
-      return openGLWorldMatrix;
-    }
-
-    _glProjectionMatrix({ projectionTransform, width, height, near, far }) {
-      const proj = [
-        [
-          (2 * projectionTransform[0][0]) / width,
-          0,
-          -((2 * projectionTransform[0][2]) / width - 1),
-          0,
-        ],
-        [
-          0,
-          (2 * projectionTransform[1][1]) / height,
-          -((2 * projectionTransform[1][2]) / height - 1),
-          0,
-        ],
-        [0, 0, -(far + near) / (far - near), (-2 * far * near) / (far - near)],
-        [0, 0, -1, 0],
-      ];
-      const projMatrix = [];
-      for (let i = 0; i < 4; i++) {
-        for (let j = 0; j < 4; j++) {
-          projMatrix.push(proj[j][i]);
-        }
-      }
-      return projMatrix;
-    }
+    });
   }
+
+  async _trackUpdateOnMainThread(modelViewTransform, trackingFeatures) {
+    // Lazy initialize Estimator for main thread
+    if (!this.mainThreadEstimator) {
+      const { Estimator } = await import("./estimation/estimator.js");
+      this.mainThreadEstimator = new Estimator(this.projectionTransform);
+    }
+
+    const { worldCoords, screenCoords } = trackingFeatures;
+    const finalModelViewTransform = this.mainThreadEstimator.refineEstimate({
+      initialModelViewTransform: modelViewTransform,
+      worldCoords,
+      screenCoords,
+    });
+    return finalModelViewTransform;
+  }
+
+  _glModelViewMatrix(modelViewTransform, targetIndex) {
+    if (!modelViewTransform) return null;
+    const height = this.markerDimensions[targetIndex][1];
+
+    const openGLWorldMatrix = [
+      modelViewTransform[0][0],
+      -modelViewTransform[1][0],
+      -modelViewTransform[2][0],
+      0,
+      -modelViewTransform[0][1],
+      modelViewTransform[1][1],
+      modelViewTransform[2][1],
+      0,
+      -modelViewTransform[0][2],
+      modelViewTransform[1][2],
+      modelViewTransform[2][2],
+      0,
+      modelViewTransform[0][1] * height + modelViewTransform[0][3],
+      -(modelViewTransform[1][1] * height + modelViewTransform[1][3]),
+      -(modelViewTransform[2][1] * height + modelViewTransform[2][3]),
+      1,
+    ];
+    return openGLWorldMatrix;
+  }
+
+  _glProjectionMatrix({ projectionTransform, width, height, near, far }) {
+    const proj = [
+      [
+        (2 * projectionTransform[0][0]) / width,
+        0,
+        -((2 * projectionTransform[0][2]) / width - 1),
+        0,
+      ],
+      [
+        0,
+        (2 * projectionTransform[1][1]) / height,
+        -((2 * projectionTransform[1][2]) / height - 1),
+        0,
+      ],
+      [0, 0, -(far + near) / (far - near), (-2 * far * near) / (far - near)],
+      [0, 0, -1, 0],
+    ];
+    const projMatrix = [];
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        projMatrix.push(proj[j][i]);
+      }
+    }
+    return projMatrix;
+  }
+}
 
 export { Controller };
