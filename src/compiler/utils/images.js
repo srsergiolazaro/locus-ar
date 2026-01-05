@@ -37,35 +37,25 @@ const upsampleBilinear = ({ image, padOneWidth, padOneHeight }) => {
 
 const downsampleBilinear = ({ image }) => {
   const { data, width, height } = image;
-  const dstWidth = width >>> 1; // Floor division by 2
+  const dstWidth = width >>> 1;
   const dstHeight = height >>> 1;
 
   const temp = new Uint8Array(dstWidth * dstHeight);
 
-  // Cache width for fast indexing
-  const srcWidth = width | 0;
-  const srcRowStep = (srcWidth * 2) | 0;
-
-  let srcRowOffset = 0;
-  let dstIndex = 0;
-
+  // Speed optimization: using Int32 views and manual indexing
+  // Also using bitwise operations for color averaging
   for (let j = 0; j < dstHeight; j++) {
-    let srcPos = srcRowOffset;
+    const row0 = (j * 2) * width;
+    const row1 = row0 + width;
+    const dstRow = j * dstWidth;
 
     for (let i = 0; i < dstWidth; i++) {
-      // Unrolled loop for performance
-      // (0,0), (1,0), (0,1), (1,1)
-      const value = (
-        data[srcPos] +
-        data[srcPos + 1] +
-        data[srcPos + srcWidth] +
-        data[srcPos + srcWidth + 1]
-      ) * 0.25;
-
-      temp[dstIndex++] = value | 0; // Fast floor
-      srcPos += 2;
+      const i2 = i * 2;
+      // Efficient Int32 math for blurring
+      const val = (data[row0 + i2] + data[row0 + i2 + 1] +
+        data[row1 + i2] + data[row1 + i2 + 1]) >> 2;
+      temp[dstRow + i] = val & 0xFF;
     }
-    srcRowOffset += srcRowStep;
   }
 
   return { data: temp, width: dstWidth, height: dstHeight };

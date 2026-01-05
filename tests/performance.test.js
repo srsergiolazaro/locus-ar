@@ -29,31 +29,40 @@ describe('Compiler Performance Benchmark', () => {
 
         const targetImage = { width, height, data: grayscaleData };
 
-        // We simulate a project with 4 identical images to test parallelization
-        const targetImages = [targetImage, targetImage, targetImage, targetImage];
+        // We focus on a single image for detailed layer analysis
+        const targetImages = [targetImage];
 
-        console.log(`🧪 Compiling ${targetImages.length} images...`);
+        console.log(`🧪 Compiling ${targetImages.length} image...`);
         const startTime = Date.now();
 
         // Testing the full process (Matching + Tracking)
-        // Note: compileImageTargets calls both matching and tracking
         const results = await compiler.compileImageTargets(targetImages, (percent) => {
             process.stdout.write(`\rTotal Progress: ${percent.toFixed(2)}%`);
         });
 
         const totalDuration = (Date.now() - startTime) / 1000;
+
+        // Export data to measure final file size
+        const exportedData = compiler.exportData();
+        const sizeInMB = exportedData.length / (1024 * 1024);
+
         console.log(`\n\n🏁 Benchmark Results:`);
-        console.log(`⏱️ Total Duration for ${targetImages.length} images: ${totalDuration.toFixed(2)}s`);
-        console.log(`🚀 Average time per image: ${(totalDuration / targetImages.length).toFixed(2)}s`);
+        console.log(`⏱️ Total Duration: ${totalDuration.toFixed(2)}s`);
+        console.log(`📦 Exported Size: ${sizeInMB.toFixed(2)} MB (${(exportedData.length / 1024).toFixed(2)} KB)`);
 
         expect(results).toBeDefined();
         expect(results.length).toBe(targetImages.length);
 
-        // Verify results structure
+        // Verify results structure and log detailed layer info
         results.forEach((res, i) => {
-            expect(res).toHaveProperty('trackingData');
-            expect(res).toHaveProperty('matchingData');
-            console.log(`✅ Image ${i + 1}: Found ${res.trackingData[0].points.length} tracking points, ${res.matchingData[0].maximaPoints.length} matching points`);
+            console.log(`\n✅ Image ${i + 1} Summary:`);
+            console.log(`   - Tracking points: ${res.trackingData[0].points.length}`);
+            console.log(`   - Matching Layers (Keyframes):`);
+
+            res.matchingData.forEach((kf, kfIdx) => {
+                const totalPoints = kf.maximaPoints.length + kf.minimaPoints.length;
+                console.log(`     Layer ${kfIdx}: Scale=${kf.scale.toFixed(4)}, Dim=${kf.width}x${kf.height}, Points=${totalPoints} (Max:${kf.maximaPoints.length}, Min:${kf.minimaPoints.length})`);
+            });
         });
 
     }, 300000); // 5 minute timeout for safety

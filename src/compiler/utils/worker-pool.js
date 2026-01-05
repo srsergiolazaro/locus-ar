@@ -34,7 +34,15 @@ export class WorkerPool {
                 task.taskData.onProgress(msg.percent);
             } else if (msg.type === 'compileDone') {
                 cleanup();
-                this._finishTask(worker, task.resolve, msg.trackingData);
+                // If it's the new unified result, return both.
+                if (msg.matchingData && msg.trackingData) {
+                    this._finishTask(worker, task.resolve, {
+                        matchingData: msg.matchingData,
+                        trackingData: msg.trackingData
+                    });
+                } else {
+                    this._finishTask(worker, task.resolve, msg.trackingData);
+                }
             } else if (msg.type === 'matchDone') {
                 cleanup();
                 this._finishTask(worker, task.resolve, msg.matchingData);

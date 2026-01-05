@@ -335,28 +335,31 @@ const _getSimilarityOptimized = (options) => {
     cy + templateSize,
   );
 
-  // Full calculation
-  let sxy = 0;
-  let p1 = (cy - templateSize) * width + (cx - templateSize);
-  let p2 = 0;
-  const nextRowOffset = width - templateWidth;
-
-  for (let j = 0; j < templateWidth; j++) {
-    for (let i = 0; i < templateWidth; i++) {
-      sxy += imageData[p1++] * templateData[p2++];
-    }
-    p1 += nextRowOffset;
-  }
-
-  // Covariance check
-  // E[(X-EX)(Y-EY)] = E[XY] - EX*EY
-  // sum((Xi - avgX)(Yi - avgY)) = sum(XiYi) - avgY * sum(Xi)
-  const sxy_final = sxy - templateAvg * sx;
-
-  let vlen2 = sxx - (sx * sx) / (nP);
+  // 🚀 MOONSHOT Early Exit: Check variance (vlen2) before expensive sxy loop
+  let vlen2 = sxx - (sx * sx) / nP;
   if (vlen2 <= 0) return null;
   vlen2 = Math.sqrt(vlen2);
 
+  // Full calculation - Optimized with 2x2 sub-sampling for SPEED
+  let sxy = 0;
+  const p1_start = (cy - templateSize) * width + (cx - templateSize);
+
+  for (let j = 0; j < templateWidth; j += 2) {
+    const rowOffset1 = p1_start + j * width;
+    const rowOffset2 = j * templateWidth;
+    for (let i = 0; i < templateWidth; i += 2) {
+      sxy += imageData[rowOffset1 + i] * templateData[rowOffset2 + i];
+    }
+  }
+
+  // Factor to normalize sxy back to full template area
+  // templateWidth is 13, steps of 2 hit 7 points per dim = 49 total points (vs 169)
+  const sampledCount = Math.ceil(templateWidth / 2) ** 2;
+  const totalCount = templateWidth * templateWidth;
+  sxy *= (totalCount / sampledCount);
+
+  // Covariance check
+  const sxy_final = sxy - templateAvg * sx;
   return (1.0 * sxy_final) / (vlen * vlen2);
 };
 

@@ -12,14 +12,14 @@
 
 import { FREAKPOINTS } from "./freak.js";
 import { gpuCompute } from "../utils/gpu-compute.js";
-import { binarizeFREAK32 } from "../utils/lsh-binarizer.js";
+import { computeLSH64, computeFullFREAK, packLSHIntoDescriptor } from "../utils/lsh-direct.js";
 
 const PYRAMID_MIN_SIZE = 4; // Reducido de 8 a 4 para exprimir al máximo la resolución
 // PYRAMID_MAX_OCTAVE ya no es necesario, el límite lo da PYRAMID_MIN_SIZE
 
 
-const NUM_BUCKETS_PER_DIMENSION = 8;
-const MAX_FEATURES_PER_BUCKET = 12; // Ajustado para un equilibrio óptimo entre densidad y estabilidad
+const NUM_BUCKETS_PER_DIMENSION = 10;
+const MAX_FEATURES_PER_BUCKET = 20; // 10x10x20 = 2000 max points total
 
 
 const ORIENTATION_NUM_BINS = 36;
@@ -57,7 +57,7 @@ export class DetectorLite {
             if (numOctaves === 10) break;
         }
 
-        this.numOctaves = numOctaves;
+        this.numOctaves = options.maxOctaves !== undefined ? Math.min(numOctaves, options.maxOctaves) : numOctaves;
     }
 
     /**
@@ -96,16 +96,19 @@ export class DetectorLite {
         this._computeFreakDescriptors(prunedExtremas, pyramidImages);
 
         // Convertir a formato de salida
-        const featurePoints = prunedExtremas.map(ext => ({
-            maxima: ext.score > 0,
-            x: ext.x * Math.pow(2, ext.octave) + Math.pow(2, ext.octave - 1) - 0.5,
-            y: ext.y * Math.pow(2, ext.octave) + Math.pow(2, ext.octave - 1) - 0.5,
-            scale: Math.pow(2, ext.octave),
-            angle: ext.angle || 0,
-            descriptors: (this.useLSH && ext.lsh) ? ext.lsh : (ext.descriptors || [])
-        }));
+        const featurePoints = prunedExtremas.map(ext => {
+            const scale = Math.pow(2, ext.octave);
+            return {
+                maxima: ext.score > 0,
+                x: ext.x * scale + scale * 0.5 - 0.5,
+                y: ext.y * scale + scale * 0.5 - 0.5,
+                scale: scale,
+                angle: ext.angle || 0,
+                descriptors: (this.useLSH && ext.lsh) ? ext.descriptors : (ext.descriptors || [])
+            };
+        });
 
-        return { featurePoints };
+        return { featurePoints, pyramid: pyramidImages };
     }
 
     /**
@@ -143,6 +146,10 @@ export class DetectorLite {
 
         for (let i = 0; i < this.numOctaves; i++) {
             const img1 = this._applyGaussianFilter(currentData, currentWidth, currentHeight);
+
+            // Only need the second blur if we are going to compute DoG with the NEXT layer
+            // or if we need it for this octave's DoG.
+            // Actually, for maxOctaves=1, we only need img1 and maybe img2 for one DoG layer.
             const img2 = this._applyGaussianFilter(img1.data, currentWidth, currentHeight);
 
             pyramid.push([
@@ -150,7 +157,7 @@ export class DetectorLite {
                 { data: img2.data, width: currentWidth, height: currentHeight }
             ]);
 
-            // Downsample para siguiente octava
+            // Downsample para siguiente octava - Only if we have more octaves to go
             if (i < this.numOctaves - 1) {
                 const downsampled = this._downsample(img2.data, currentWidth, currentHeight);
                 currentData = downsampled.data;
@@ -168,44 +175,47 @@ export class DetectorLite {
     _applyGaussianFilter(data, width, height) {
         const output = new Float32Array(width * height);
         const temp = new Float32Array(width * height);
-        const k0 = 1 / 16, k1 = 4 / 16, k2 = 6 / 16;
+        const k0 = 0.0625, k1 = 0.25, k2 = 0.375; // 1/16, 4/16, 6/16
         const w1 = width - 1;
-        const h1 = height - 1;
 
-        // Horizontal pass - unrolled kernel
+        // Horizontal pass - Speed optimized with manual border handling
         for (let y = 0; y < height; y++) {
             const rowOffset = y * width;
-            for (let x = 0; x < width; x++) {
-                const x0 = x < 2 ? 0 : x - 2;
-                const x1 = x < 1 ? 0 : x - 1;
-                const x3 = x > w1 - 1 ? w1 : x + 1;
-                const x4 = x > w1 - 2 ? w1 : x + 2;
 
-                temp[rowOffset + x] =
-                    data[rowOffset + x0] * k0 +
-                    data[rowOffset + x1] * k1 +
-                    data[rowOffset + x] * k2 +
-                    data[rowOffset + x3] * k1 +
-                    data[rowOffset + x4] * k0;
+            // Left border
+            temp[rowOffset] = data[rowOffset] * (k0 + k1 + k2) + data[rowOffset + 1] * k1 + data[rowOffset + 2] * k0;
+            temp[rowOffset + 1] = data[rowOffset] * k1 + data[rowOffset + 1] * k2 + data[rowOffset + 2] * k1 + data[rowOffset + 3] * k0;
+
+            // Main loop - NO boundary checks
+            for (let x = 2; x < width - 2; x++) {
+                const pos = rowOffset + x;
+                temp[pos] = data[pos - 2] * k0 + data[pos - 1] * k1 + data[pos] * k2 + data[pos + 1] * k1 + data[pos + 2] * k0;
             }
+
+            // Right border
+            const r2 = rowOffset + width - 2;
+            const r1 = rowOffset + width - 1;
+            temp[r2] = data[r2 - 2] * k0 + data[r2 - 1] * k1 + data[r2] * k2 + data[r1] * k1;
+            temp[r1] = data[r1 - 2] * k0 + data[r1 - 1] * k1 + data[r1] * (k2 + k1 + k0);
         }
 
-        // Vertical pass - unrolled kernel
-        for (let y = 0; y < height; y++) {
-            const y0 = (y < 2 ? 0 : y - 2) * width;
-            const y1 = (y < 1 ? 0 : y - 1) * width;
-            const y2 = y * width;
-            const y3 = (y > h1 - 1 ? h1 : y + 1) * width;
-            const y4 = (y > h1 - 2 ? h1 : y + 2) * width;
+        // Vertical pass - Speed optimized
+        for (let x = 0; x < width; x++) {
+            // Top border
+            output[x] = temp[x] * (k0 + k1 + k2) + temp[x + width] * k1 + temp[x + width * 2] * k0;
+            output[x + width] = temp[x] * k1 + temp[x + width] * k2 + temp[x + width * 2] * k1 + temp[x + width * 3] * k0;
 
-            for (let x = 0; x < width; x++) {
-                output[y2 + x] =
-                    temp[y0 + x] * k0 +
-                    temp[y1 + x] * k1 +
-                    temp[y2 + x] * k2 +
-                    temp[y3 + x] * k1 +
-                    temp[y4 + x] * k0;
+            // Main loop - NO boundary checks
+            for (let y = 2; y < height - 2; y++) {
+                const p = y * width + x;
+                output[p] = temp[p - width * 2] * k0 + temp[p - width] * k1 + temp[p] * k2 + temp[p + width] * k1 + temp[p + width * 2] * k0;
             }
+
+            // Bottom border
+            const b2 = (height - 2) * width + x;
+            const b1 = (height - 1) * width + x;
+            output[b2] = temp[b2 - width * 2] * k0 + temp[b2 - width] * k1 + temp[b2] * k2 + temp[b1] * k1;
+            output[b1] = temp[b1 - width * 2] * k0 + temp[b1 - width] * k1 + temp[b1] * (k2 + k1 + k0);
         }
 
         return { data: output, width, height };
@@ -215,36 +225,19 @@ export class DetectorLite {
      * Downsample imagen por factor de 2
      */
     _downsample(data, width, height) {
-        const newWidth = Math.floor(width / 2);
-        const newHeight = Math.floor(height / 2);
+        const newWidth = width >> 1;
+        const newHeight = height >> 1;
         const output = new Float32Array(newWidth * newHeight);
 
         for (let y = 0; y < newHeight; y++) {
+            const r0 = (y * 2) * width;
+            const r1 = r0 + width;
+            const dr = y * newWidth;
             for (let x = 0; x < newWidth; x++) {
-                // Interpolación bilinear
-                const srcX = x * 2 + 0.5;
-                const srcY = y * 2 + 0.5;
-                const x0 = Math.floor(srcX);
-                const y0 = Math.floor(srcY);
-                const x1 = Math.min(x0 + 1, width - 1);
-                const y1 = Math.min(y0 + 1, height - 1);
-
-                const fx = srcX - x0;
-                const fy = srcY - y0;
-
-                const v00 = data[y0 * width + x0];
-                const v10 = data[y0 * width + x1];
-                const v01 = data[y1 * width + x0];
-                const v11 = data[y1 * width + x1];
-
-                output[y * newWidth + x] =
-                    v00 * (1 - fx) * (1 - fy) +
-                    v10 * fx * (1 - fy) +
-                    v01 * (1 - fx) * fy +
-                    v11 * fx * fy;
+                const i2 = x * 2;
+                output[dr + x] = (data[r0 + i2] + data[r0 + i2 + 1] + data[r1 + i2] + data[r1 + i2 + 1]) * 0.25;
             }
         }
-
         return { data: output, width: newWidth, height: newHeight };
     }
 
@@ -277,15 +270,13 @@ export class DetectorLite {
     _findExtremas(dogPyramid, pyramidImages) {
         const extremas = [];
 
-        for (let octave = 1; octave < dogPyramid.length - 1; octave++) {
+        for (let octave = 0; octave < dogPyramid.length; octave++) {
             const curr = dogPyramid[octave];
-            const prev = dogPyramid[octave - 1];
-            const next = dogPyramid[octave + 1];
+            const prev = octave > 0 ? dogPyramid[octave - 1] : null;
+            const next = octave < dogPyramid.length - 1 ? dogPyramid[octave + 1] : null;
 
             const width = curr.width;
             const height = curr.height;
-            const prevWidth = prev.width;
-            const nextWidth = next.width;
 
             for (let y = 1; y < height - 1; y++) {
                 for (let x = 1; x < width - 1; x++) {
@@ -306,10 +297,11 @@ export class DetectorLite {
                         }
                     }
 
-                    // Check previous scale (scaled coordinates)
-                    if (isMaxima || isMinima) {
-                        const px = Math.floor(x * 2);
-                        const py = Math.floor(y * 2);
+                    // Check previous scale (scaled coordinates) - skip if no prev layer
+                    if ((isMaxima || isMinima) && prev) {
+                        const px = x << 1;
+                        const py = y << 1;
+                        const prevWidth = prev.width;
                         for (let dy = -1; dy <= 1 && (isMaxima || isMinima); dy++) {
                             for (let dx = -1; dx <= 1 && (isMaxima || isMinima); dx++) {
                                 const xx = Math.max(0, Math.min(prevWidth - 1, px + dx));
@@ -321,10 +313,11 @@ export class DetectorLite {
                         }
                     }
 
-                    // Check next scale (scaled coordinates)
-                    if (isMaxima || isMinima) {
-                        const nx = Math.floor(x / 2);
-                        const ny = Math.floor(y / 2);
+                    // Check next scale (scaled coordinates) - skip if no next layer
+                    if ((isMaxima || isMinima) && next) {
+                        const nx = x >> 1;
+                        const ny = y >> 1;
+                        const nextWidth = next.width;
                         for (let dy = -1; dy <= 1 && (isMaxima || isMinima); dy++) {
                             for (let dx = -1; dx <= 1 && (isMaxima || isMinima); dx++) {
                                 const xx = Math.max(0, Math.min(nextWidth - 1, nx + dx));
@@ -391,7 +384,7 @@ export class DetectorLite {
      */
     _computeOrientations(extremas, pyramidImages) {
         for (const ext of extremas) {
-            if (ext.octave < 1 || ext.octave >= pyramidImages.length) {
+            if (ext.octave < 0 || ext.octave >= pyramidImages.length) {
                 ext.angle = 0;
                 continue;
             }
@@ -444,8 +437,8 @@ export class DetectorLite {
      */
     _computeFreakDescriptors(extremas, pyramidImages) {
         for (const ext of extremas) {
-            if (ext.octave < 1 || ext.octave >= pyramidImages.length) {
-                ext.descriptors = [];
+            if (ext.octave < 0 || ext.octave >= pyramidImages.length) {
+                ext.descriptors = new Uint8Array(8);
                 continue;
             }
 
@@ -479,28 +472,15 @@ export class DetectorLite {
                     data[y1 * width + x1] * fracX * fracY;
             }
 
-            // Pack pairs into Uint8Array (84 bytes per descriptor)
-            const descriptor = new Uint8Array(84);
-            let bitCount = 0;
-            let byteIdx = 0;
-
-            for (let i = 0; i < FREAKPOINTS.length; i++) {
-                for (let j = i + 1; j < FREAKPOINTS.length; j++) {
-                    if (samples[i] < samples[j]) {
-                        descriptor[byteIdx] |= (1 << (7 - bitCount));
-                    }
-                    bitCount++;
-
-                    if (bitCount === 8) {
-                        byteIdx++;
-                        bitCount = 0;
-                    }
-                }
-            }
+            // 🚀 MOONSHOT: Direct LSH computation
+            // Avoids computing 672 bits of FREAK just to sample 64.
             if (this.useLSH) {
-                ext.lsh = binarizeFREAK32(descriptor);
+                ext.lsh = computeLSH64(samples);
+                // Pack LSH into 8-byte descriptors for compatibility
+                ext.descriptors = packLSHIntoDescriptor(ext.lsh);
+            } else {
+                ext.descriptors = computeFullFREAK(samples);
             }
-            ext.descriptors = descriptor;
         }
     }
 }
