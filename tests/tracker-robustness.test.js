@@ -82,21 +82,25 @@ describe('Tracker Robustness Evaluation (via Controller)', () => {
                     const detector = new DetectorLite(width, height, { useLSH: true });
                     const { featurePoints } = detector.detect(inputData);
                     const featuresCount = featurePoints?.length || 0;
-                    console.log(`[${res}] ${filename} | Detected: ${featuresCount} features`);
-
-                    if (featuresCount < 10) {
-                        console.log(`[${res}] ${filename} | ⚠️ Too few features detected`);
-                    }
-
                     // Perform matching (targetIndex 0 since we only compiled one)
                     const matchResult = await controller.match(featurePoints, 0);
 
                     const inliers = matchResult.screenCoords?.length || 0;
-                    const status = inliers >= CONFIG.MIN_INLIERS_PASS ? '✅ PASS' :
-                        (inliers >= CONFIG.MIN_INLIERS_LOW ? '⚠️ LOW' : '❌ FAIL');
+                    const status = inliers >= CONFIG.MIN_INLIERS_PASS ? 'PASS' :
+                        (inliers >= CONFIG.MIN_INLIERS_LOW ? 'LOW' : 'FAIL');
 
-                    console.log(`[${res}] ${filename.padEnd(20)} | Inliers: ${String(inliers).padStart(4)} | ${status}`);
+                    // ONLY log if it's not a clear pass or if debug is needed
+                    if (status !== 'PASS') {
+                        console.log(`[${res}] ${filename.padEnd(20)} | Features: ${featuresCount} | Inliers: ${inliers} | Status: ${status} ❌`);
+                    } else if (featuresCount < 50) {
+                        // Warn if detection is fragile even if it passed
+                        console.log(`[${res}] ${filename.padEnd(20)} | Features: ${featuresCount} | Inliers: ${inliers} | Status: ${status} ⚠️ (Fragile)`);
+                    }
 
+                    // Strict expect for correctness
+                    if (matchResult.targetIndex !== 0) {
+                        // console.error(`FAILED MATCH: [${res}] ${filename} -> Index ${matchResult.targetIndex}`);
+                    }
                     expect(matchResult.targetIndex).toBe(0);
                     expect(inliers).toBeGreaterThanOrEqual(10);
                 }, 20000);

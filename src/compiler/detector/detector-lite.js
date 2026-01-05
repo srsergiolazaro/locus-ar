@@ -19,7 +19,7 @@ const PYRAMID_MIN_SIZE = 4; // Restored to 4 for better small-scale detection
 
 
 const NUM_BUCKETS_PER_DIMENSION = 10;
-const MAX_FEATURES_PER_BUCKET = 15; // Increased from 5 to 15 to fix robustness regressions
+const MAX_FEATURES_PER_BUCKET = 20; // Reverted to 20 to check if it fixes robustness
 
 
 const ORIENTATION_NUM_BINS = 36;
