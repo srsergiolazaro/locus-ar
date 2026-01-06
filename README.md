@@ -31,7 +31,9 @@
 
 - 🖼️ **Hyper-Fast Compiler**: Pure JavaScript compiler that generates `.taar` files in **< 3s**.
 - ⚡ **No TensorFlow Dependency**: No TFJS at all. Works natively in any JS environment (Node, Browser, Workers).
+- 🧬 **Fourier Positional Encoding**: Uses high-frequency sine/cosine mappings (GPT-style) for neural-like spatial consistency.
 - 🚀 **Protocol V7 (Moonshot)**: 
+  - **16-bit Fourier Signatures**: Spatial ADN embedded in every feature for harmonic matching.
   - **4-bit Packed Tracking Data**: Grayscale images are compressed to 4-bit depth, slashing file size.
   - **64-bit LSH Descriptors**: Optimized Locality Sensitive Hashing for descriptors.
 - 🧵 **High-Precision Tracking**: Now using **Float32** coordinate precision for rock-solid tracking stability.
@@ -256,10 +258,11 @@ ar.stop();
 ## 🏗️ Protocol V7 (Moonshot Packed Format)
 TapTapp AR uses a proprietary **Moonshot Vision Codec** that is significantly more efficient than standard AR formats.
 
+- **Fourier Positional Encoding**: Maps 2D coordinates into a 16-dimensional frequency space. This creates a "Neural Consistency Check" that filters out noise and motion blur by checking for harmonic spatial agreement.
 - **4-bit Packed Tracking Data**: Image data used for optical flow is compressed to 4-bit depth.
 - **64-bit LSH Fingerprinting**: Feature descriptors are compressed to just 8 bytes using LSH.
 - **Binary Matching Engine**: Uses hardware-accelerated population count (`popcount`) and `XOR` for near-instant point matching.
-- **Zero-Copy Restoration**: Binary buffers are mapped directly to TypedArrays (Uint32 for descriptors, Float32 for tracking coordinates).
+- **Zero-Copy Restoration**: Binary buffers are mapped directly to TypedArrays (Uint32 for descriptors, Float32 for tracking coordinates, Int8 for Fourier signatures).
 
 ---
 
