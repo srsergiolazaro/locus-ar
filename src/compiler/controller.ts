@@ -264,58 +264,80 @@ class Controller {
 
         const state = this.trackingStates[targetIndex];
         if (!state.pointStabilities) state.pointStabilities = [];
+        if (!state.lastScreenCoords) state.lastScreenCoords = [];
+
         if (!state.pointStabilities[octaveIndex]) {
-            // Initialize stabilities for this octave if not exists
             const numPoints = (this.tracker as any).prebuiltData[targetIndex][octaveIndex].px.length;
-            state.pointStabilities[octaveIndex] = new Float32Array(numPoints).fill(0.5); // Start at 0.5
+            state.pointStabilities[octaveIndex] = new Float32Array(numPoints).fill(0);
+            state.lastScreenCoords[octaveIndex] = new Array(numPoints).fill(null);
         }
 
         const stabilities = state.pointStabilities[octaveIndex];
-        const currentStabilities: number[] = [];
+        const lastCoords = state.lastScreenCoords[octaveIndex];
 
-        // Update all points in this octave
+        // Update stability for ALL points in the current octave
         for (let i = 0; i < stabilities.length; i++) {
-            const isTracked = indices.includes(i);
-            if (isTracked) {
-                stabilities[i] = Math.min(1.0, stabilities[i] + 0.35); // Fast recovery (approx 3 frames)
+            const isCurrentlyTracked = indices.includes(i);
+            if (isCurrentlyTracked) {
+                const idxInResult = indices.indexOf(i);
+                stabilities[i] = Math.min(1.0, stabilities[i] + 0.4); // Fast attack
+                lastCoords[i] = screenCoords[idxInResult]; // Update last known position
             } else {
-                stabilities[i] = Math.max(0.0, stabilities[i] - 0.12); // Slightly more forgiving loss
+                stabilities[i] = Math.max(0.0, stabilities[i] - 0.08); // Slow decay (approx 12 frames/0.2s)
             }
         }
 
-        // Collect stabilities and FILTER OUT excessive flickerers (Dead Zone)
-        const filteredWorldCoords = [];
-        const filteredScreenCoords = [];
-        const filteredStabilities = [];
+        // Collect points for the UI: both currently tracked AND hibernating
+        const finalScreenCoords: any[] = [];
+        const finalReliabilities: number[] = [];
+        const finalStabilities: number[] = [];
+        const finalWorldCoords: any[] = [];
 
-        for (let i = 0; i < indices.length; i++) {
-            const s = stabilities[indices[i]];
-            if (s > 0.3) { // Hard Cutoff: points with <30% stability are ignored
-                filteredWorldCoords.push(worldCoords[i]);
-                filteredScreenCoords.push(screenCoords[i]);
-                filteredStabilities.push(s);
+        for (let i = 0; i < stabilities.length; i++) {
+            if (stabilities[i] > 0) {
+                const isCurrentlyTracked = indices.includes(i);
+                finalScreenCoords.push(lastCoords[i]);
+                finalStabilities.push(stabilities[i]);
+
+                if (isCurrentlyTracked) {
+                    const idxInResult = indices.indexOf(i);
+                    finalReliabilities.push(reliabilities[idxInResult]);
+                    finalWorldCoords.push(worldCoords[idxInResult]);
+                } else {
+                    finalReliabilities.push(0); // Hibernating points have 0 reliability
+                }
             }
         }
 
-        // STRICT QUALITY CHECK: Prevent "sticky" tracking on background noise.
-        // We require a minimum number of high-confidence AND STABLE points.
-        const stableAndReliable = reliabilities.filter((r: number, idx: number) => r > 0.75 && stabilities[indices[idx]] > 0.5).length;
+        // STRICT QUALITY CHECK: We only update the transform if we have enough HIGH CONFIDENCE points
+        const stableAndReliable = reliabilities.filter((r: number, idx: number) => r > 0.8 && stabilities[indices[idx]] > 0.6).length;
 
-        if (stableAndReliable < 6 || filteredWorldCoords.length < 8) {
-            return { modelViewTransform: null, screenCoords: [], reliabilities: [], stabilities: [] };
+        if (stableAndReliable < 6 || finalWorldCoords.length < 8) {
+            return {
+                modelViewTransform: null,
+                screenCoords: finalScreenCoords,
+                reliabilities: finalReliabilities,
+                stabilities: finalStabilities
+            };
         }
 
         const modelViewTransform = await this._workerTrackUpdate(lastModelViewTransform, {
-            worldCoords: filteredWorldCoords,
-            screenCoords: filteredScreenCoords,
-            stabilities: filteredStabilities
+            worldCoords: finalWorldCoords,
+            screenCoords: finalWorldCoords.map((_, i) => {
+                const globalIdx = indices[i];
+                return lastCoords[globalIdx];
+            }),
+            stabilities: finalWorldCoords.map((_, i) => {
+                const globalIdx = indices[i];
+                return stabilities[globalIdx];
+            })
         });
 
         return {
             modelViewTransform,
-            screenCoords: filteredScreenCoords,
-            reliabilities: reliabilities.filter((_, idx) => stabilities[indices[idx]] > 0.3),
-            stabilities: filteredStabilities
+            screenCoords: finalScreenCoords,
+            reliabilities: finalReliabilities,
+            stabilities: finalStabilities
         };
     }
 
@@ -371,9 +393,10 @@ class Controller {
                         );
                         if (result === null || result.modelViewTransform === null) {
                             trackingState.isTracking = false;
-                            trackingState.screenCoords = [];
-                            trackingState.reliabilities = [];
-                            trackingState.stabilities = [];
+                            // Keep points for the last update so they can be shown as it "asoma"
+                            trackingState.screenCoords = result?.screenCoords || [];
+                            trackingState.reliabilities = result?.reliabilities || [];
+                            trackingState.stabilities = result?.stabilities || [];
                         } else {
                             trackingState.currentModelViewTransform = result.modelViewTransform;
                             trackingState.screenCoords = result.screenCoords;
@@ -387,29 +410,33 @@ class Controller {
 
                     if (wasShowing && !trackingState.showing) {
                         trackingState.trackingMatrix = null;
-                        this.onUpdate && this.onUpdate({ type: "updateMatrix", targetIndex: i, worldMatrix: null });
                         this.featureManager.notifyUpdate({ type: "reset", targetIndex: i });
                     }
 
-                    if (trackingState.showing) {
-                        const worldMatrix = this._glModelViewMatrix(trackingState.currentModelViewTransform, i);
+                    // Always notify update if we have points or if visibility changed
+                    if (trackingState.showing || (trackingState.screenCoords && trackingState.screenCoords.length > 0) || (wasShowing && !trackingState.showing)) {
+                        const worldMatrix = trackingState.showing ? this._glModelViewMatrix(trackingState.currentModelViewTransform, i) : null;
 
-                        // Calculate confidence score based on point stability
-                        const stabilities = trackingState.stabilities || [];
-                        const avgStability = stabilities.length > 0
-                            ? stabilities.reduce((a: number, b: number) => a + b, 0) / stabilities.length
-                            : 0;
+                        let finalMatrix = null;
 
-                        const filteredMatrix = this.featureManager.applyWorldMatrixFilters(i, worldMatrix, { stability: avgStability });
-                        trackingState.trackingMatrix = filteredMatrix;
+                        if (worldMatrix) {
+                            // Calculate confidence score based on point stability
+                            const stabilities = trackingState.stabilities || [];
+                            const avgStability = stabilities.length > 0
+                                ? stabilities.reduce((a: number, b: number) => a + b, 0) / stabilities.length
+                                : 0;
 
-                        let finalMatrix = [...filteredMatrix];
+                            const filteredMatrix = this.featureManager.applyWorldMatrixFilters(i, worldMatrix, { stability: avgStability });
+                            trackingState.trackingMatrix = filteredMatrix;
 
-                        const isInputRotated = input.width === this.inputHeight && input.height === this.inputWidth;
-                        if (isInputRotated) {
-                            const rotationFeature = this.featureManager.getFeature<AutoRotationFeature>("auto-rotation");
-                            if (rotationFeature) {
-                                finalMatrix = rotationFeature.rotate(finalMatrix);
+                            finalMatrix = [...filteredMatrix];
+
+                            const isInputRotated = input.width === this.inputHeight && input.height === this.inputWidth;
+                            if (isInputRotated) {
+                                const rotationFeature = this.featureManager.getFeature<AutoRotationFeature>("auto-rotation");
+                                if (rotationFeature) {
+                                    finalMatrix = rotationFeature.rotate(finalMatrix);
+                                }
                             }
                         }
 

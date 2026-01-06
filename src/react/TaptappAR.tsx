@@ -90,21 +90,29 @@ export const TaptappAR: React.FC<TaptappARProps> = ({
             </div>
 
             {/* Tracking Points Layer */}
-            {status === "tracking" && (
-                <div className="taptapp-ar-points-overlay">
-                    {trackedPoints.filter(p => p.reliability > 0.7).map((point, i) => (
-                        <div
-                            key={i}
-                            className="tracking-point"
-                            style={{
-                                left: `${point.x}px`,
-                                top: `${point.y}px`,
-                                width: `${(2 + point.reliability * 6) * (0.4 + point.stability * 0.6)}px`,
-                                height: `${(2 + point.reliability * 6) * (0.4 + point.stability * 0.6)}px`,
-                                opacity: (0.3 + (point.reliability * 0.4)) * (0.2 + point.stability * 0.8)
-                            }}
-                        />
-                    ))}
+            {trackedPoints.length > 0 && (
+                <div className="taptapp-ar-points-overlay" style={{ opacity: status === "tracking" ? 1 : 0.6 }}>
+                    {trackedPoints
+                        .map((point, i) => {
+                            const isStable = point.stability > 0.8 && point.reliability > 0.5;
+                            const size = (2 + point.reliability * 6) * (0.6 + point.stability * 0.4);
+
+                            return (
+                                <div
+                                    key={i}
+                                    className={`tracking-point ${!isStable ? 'flickering' : ''}`}
+                                    style={{
+                                        left: `${point.x}px`,
+                                        top: `${point.y}px`,
+                                        width: `${size}px`,
+                                        height: `${size}px`,
+                                        opacity: (0.3 + (point.reliability * 0.5)) * (0.2 + point.stability * 0.8),
+                                        backgroundColor: isStable ? 'black' : '#00ff00',
+                                        boxShadow: isStable ? '0 0 2px rgba(255, 255, 255, 0.8)' : '0 0 8px #00ff00'
+                                    }}
+                                />
+                            );
+                        })}
                 </div>
             )}
 
@@ -204,11 +212,15 @@ export const TaptappAR: React.FC<TaptappARProps> = ({
                 .tracking-point {
                     position: absolute;
                     background: black;
-                    border: 1px solid rgba(255,255,255,0.5); /* Better contrast */
+                    border: 1px solid rgba(255,255,255,0.5);
                     border-radius: 50%;
                     transform: translate(-50%, -50%);
                     box-shadow: 0 0 2px rgba(255, 255, 255, 0.8);
                     pointer-events: none;
+                    transition: background-color 0.3s ease, box-shadow 0.3s ease, width 0.2s ease, height 0.2s ease, opacity 0.2s ease;
+                }
+                .tracking-point.flickering {
+                    z-index: 101;
                 }
             `}</style>
         </div>
