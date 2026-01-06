@@ -256,26 +256,67 @@ class Controller {
     }
 
     async _trackAndUpdate(inputData: any, lastModelViewTransform: number[][], targetIndex: number) {
-        const { worldCoords, screenCoords, reliabilities } = this.tracker!.track(
+        const { worldCoords, screenCoords, reliabilities, indices = [], octaveIndex = 0 } = this.tracker!.track(
             inputData,
             lastModelViewTransform,
             targetIndex,
         );
 
-        // STRICT QUALITY CHECK: Prevent "sticky" tracking on background noise.
-        // We require a minimum number of high-confidence points.
-        const highConfidencePoints = reliabilities.filter((r: number) => r > 0.75).length;
-        if (highConfidencePoints < 8) {
-            return null; // Force track loss if points are not reliable enough
+        const state = this.trackingStates[targetIndex];
+        if (!state.pointStabilities) state.pointStabilities = [];
+        if (!state.pointStabilities[octaveIndex]) {
+            // Initialize stabilities for this octave if not exists
+            const numPoints = (this.tracker as any).prebuiltData[targetIndex][octaveIndex].px.length;
+            state.pointStabilities[octaveIndex] = new Float32Array(numPoints).fill(0.5); // Start at 0.5
         }
 
-        if (worldCoords.length < 8) return null;
+        const stabilities = state.pointStabilities[octaveIndex];
+        const currentStabilities: number[] = [];
+
+        // Update all points in this octave
+        for (let i = 0; i < stabilities.length; i++) {
+            const isTracked = indices.includes(i);
+            if (isTracked) {
+                stabilities[i] = Math.min(1.0, stabilities[i] + 0.35); // Fast recovery (approx 3 frames)
+            } else {
+                stabilities[i] = Math.max(0.0, stabilities[i] - 0.12); // Slightly more forgiving loss
+            }
+        }
+
+        // Collect stabilities and FILTER OUT excessive flickerers (Dead Zone)
+        const filteredWorldCoords = [];
+        const filteredScreenCoords = [];
+        const filteredStabilities = [];
+
+        for (let i = 0; i < indices.length; i++) {
+            const s = stabilities[indices[i]];
+            if (s > 0.3) { // Hard Cutoff: points with <30% stability are ignored
+                filteredWorldCoords.push(worldCoords[i]);
+                filteredScreenCoords.push(screenCoords[i]);
+                filteredStabilities.push(s);
+            }
+        }
+
+        // STRICT QUALITY CHECK: Prevent "sticky" tracking on background noise.
+        // We require a minimum number of high-confidence AND STABLE points.
+        const stableAndReliable = reliabilities.filter((r: number, idx: number) => r > 0.75 && stabilities[indices[idx]] > 0.5).length;
+
+        if (stableAndReliable < 6 || filteredWorldCoords.length < 8) {
+            return { modelViewTransform: null, screenCoords: [], reliabilities: [], stabilities: [] };
+        }
 
         const modelViewTransform = await this._workerTrackUpdate(lastModelViewTransform, {
-            worldCoords,
-            screenCoords,
+            worldCoords: filteredWorldCoords,
+            screenCoords: filteredScreenCoords,
+            stabilities: filteredStabilities
         });
-        return { modelViewTransform, screenCoords, reliabilities };
+
+        return {
+            modelViewTransform,
+            screenCoords: filteredScreenCoords,
+            reliabilities: reliabilities.filter((_, idx) => stabilities[indices[idx]] > 0.3),
+            stabilities: filteredStabilities
+        };
     }
 
     processVideo(input: any) {
@@ -332,10 +373,12 @@ class Controller {
                             trackingState.isTracking = false;
                             trackingState.screenCoords = [];
                             trackingState.reliabilities = [];
+                            trackingState.stabilities = [];
                         } else {
                             trackingState.currentModelViewTransform = result.modelViewTransform;
                             trackingState.screenCoords = result.screenCoords;
                             trackingState.reliabilities = result.reliabilities;
+                            trackingState.stabilities = result.stabilities;
                         }
                     }
 
@@ -369,7 +412,8 @@ class Controller {
                             worldMatrix: finalMatrix,
                             modelViewTransform: trackingState.currentModelViewTransform,
                             screenCoords: trackingState.screenCoords,
-                            reliabilities: trackingState.reliabilities
+                            reliabilities: trackingState.reliabilities,
+                            stabilities: trackingState.stabilities
                         });
                     }
                 }
@@ -500,12 +544,13 @@ class Controller {
                 this.workerTrackDone = null;
                 resolve(data.modelViewTransform);
             };
-            const { worldCoords, screenCoords } = trackingFeatures;
+            const { worldCoords, screenCoords, stabilities } = trackingFeatures;
             this.worker.postMessage({
                 type: "trackUpdate",
                 modelViewTransform,
                 worldCoords,
                 screenCoords,
+                stabilities
             });
         });
     }
@@ -516,11 +561,12 @@ class Controller {
             this.mainThreadEstimator = new Estimator(this.projectionTransform);
         }
 
-        const { worldCoords, screenCoords } = trackingFeatures;
+        const { worldCoords, screenCoords, stabilities } = trackingFeatures;
         return this.mainThreadEstimator.refineEstimate({
             initialModelViewTransform: modelViewTransform,
             worldCoords,
             screenCoords,
+            stabilities
         });
     }
 

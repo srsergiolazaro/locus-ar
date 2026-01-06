@@ -163,7 +163,7 @@ class Tracker {
       };
     }
 
-    return { worldCoords, screenCoords, reliabilities, debugExtra };
+    return { worldCoords, screenCoords, reliabilities, indices: goodTrack, octaveIndex, debugExtra };
   }
 
   /**

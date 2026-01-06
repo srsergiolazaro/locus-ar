@@ -99,9 +99,9 @@ export const TaptappAR: React.FC<TaptappARProps> = ({
                             style={{
                                 left: `${point.x}px`,
                                 top: `${point.y}px`,
-                                width: `${4 + point.reliability * 8}px`, // Reduced size slightly
-                                height: `${4 + point.reliability * 8}px`,
-                                opacity: 0.5 + (point.reliability * 0.5)
+                                width: `${(2 + point.reliability * 6) * (0.4 + point.stability * 0.6)}px`,
+                                height: `${(2 + point.reliability * 6) * (0.4 + point.stability * 0.6)}px`,
+                                opacity: (0.3 + (point.reliability * 0.4)) * (0.2 + point.stability * 0.8)
                             }}
                         />
                     ))}

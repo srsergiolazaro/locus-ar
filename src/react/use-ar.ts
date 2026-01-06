@@ -8,6 +8,7 @@ export interface TrackedPoint {
     x: number;
     y: number;
     reliability: number;
+    stability: number;
 }
 
 export interface UseARReturn {
@@ -61,12 +62,13 @@ export const useAR = (config: ARConfig): UseARReturn => {
                     overlay: overlayRef.current!,
                     scale: config.scale,
                     debug: false,
-                    onUpdate: ({ screenCoords, reliabilities }) => {
-                        if (screenCoords && reliabilities) {
+                    onUpdate: ({ screenCoords, reliabilities, stabilities }) => {
+                        if (screenCoords && reliabilities && stabilities) {
                             const points = screenCoords.map((p, i) => ({
                                 x: p.x,
                                 y: p.y,
-                                reliability: reliabilities[i]
+                                reliability: reliabilities[i],
+                                stability: stabilities[i]
                             }));
                             setTrackedPoints(points);
                         }

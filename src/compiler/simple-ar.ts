@@ -17,7 +17,8 @@ export interface SimpleAROptions {
         targetIndex: number,
         worldMatrix: number[],
         screenCoords?: { x: number, y: number }[],
-        reliabilities?: number[]
+        reliabilities?: number[],
+        stabilities?: number[]
     }) => void) | null;
     cameraConfig?: MediaStreamConstraints['video'];
     debug?: boolean;
@@ -34,7 +35,8 @@ class SimpleAR {
         targetIndex: number,
         worldMatrix: number[],
         screenCoords?: { x: number, y: number }[],
-        reliabilities?: number[]
+        reliabilities?: number[],
+        stabilities?: number[]
     }) => void) | null;
     cameraConfig: MediaStreamConstraints['video'];
     debug: boolean;
@@ -161,7 +163,7 @@ class SimpleAR {
             if (this.debug) this._updateDebugPanel(this.isTracking);
         }
 
-        const { targetIndex, worldMatrix, modelViewTransform, screenCoords, reliabilities } = data;
+        const { targetIndex, worldMatrix, modelViewTransform, screenCoords, reliabilities, stabilities } = data;
 
         if (worldMatrix) {
             if (!this.isTracking) {
@@ -211,7 +213,8 @@ class SimpleAR {
                 targetIndex,
                 worldMatrix,
                 screenCoords: projectedPoints,
-                reliabilities
+                reliabilities,
+                stabilities
             });
 
         } else {
@@ -223,7 +226,8 @@ class SimpleAR {
                     targetIndex,
                     worldMatrix: null as any,
                     screenCoords: [],
-                    reliabilities: []
+                    reliabilities: [],
+                    stabilities: []
                 });
             }
         }

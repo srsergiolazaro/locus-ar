@@ -21,6 +21,7 @@ const refineEstimate = ({
   projectionTransform,
   worldCoords,
   screenCoords,
+  stabilities, // Stability-based weighting
 }) => {
   // Question: shall we normlize the screen coords as well?
   // Question: do we need to normlize the scale as well, i.e. make coords from -1 to 1
@@ -74,6 +75,7 @@ const refineEstimate = ({
       projectionTransform,
       worldCoords: normalizedWorldCoords,
       screenCoords,
+      stabilities, // Pass weights to ICP
       inlierProb: inlierProbs[i],
     });
 
@@ -113,6 +115,7 @@ const _doICP = ({
   projectionTransform,
   worldCoords,
   screenCoords,
+  stabilities,
   inlierProb,
 }) => {
   const isRobustMode = inlierProb < 1;
@@ -196,7 +199,13 @@ const _doICP = ({
       });
 
       if (isRobustMode) {
-        const W = (1.0 - E[n] / K2) * (1.0 - E[n] / K2);
+        const robustW = (1.0 - E[n] / K2) * (1.0 - E[n] / K2);
+
+        // Log-weighted stability: suppresses vibrators aggressively but allows recovery
+        const s = stabilities ? stabilities[n] : 1.0;
+        const stabilityW = s * Math.log10(9 * s + 1);
+
+        const W = robustW * stabilityW;
 
         for (let j = 0; j < 2; j++) {
           for (let i = 0; i < 6; i++) {
@@ -206,8 +215,16 @@ const _doICP = ({
         dU.push([dxs[n] * W]);
         dU.push([dys[n] * W]);
       } else {
-        dU.push([dxs[n]]);
-        dU.push([dys[n]]);
+        const s = stabilities ? stabilities[n] : 1.0;
+        const W = s * Math.log10(9 * s + 1);
+
+        for (let j = 0; j < 2; j++) {
+          for (let i = 0; i < 6; i++) {
+            J_U_S[j][i] *= W;
+          }
+        }
+        dU.push([dxs[n] * W]);
+        dU.push([dys[n] * W]);
       }
 
       for (let i = 0; i < J_U_S.length; i++) {

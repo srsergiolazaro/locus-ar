@@ -53,11 +53,12 @@ onmessage = (msg) => {
       break;
 
     case "trackUpdate":
-      const { modelViewTransform, worldCoords, screenCoords } = data;
+      const { modelViewTransform, worldCoords, screenCoords, stabilities } = data;
       const finalModelViewTransform = estimator.refineEstimate({
         initialModelViewTransform: modelViewTransform,
         worldCoords,
         screenCoords,
+        stabilities, // Stability-based weights
       });
       postMessage({
         type: "trackUpdateDone",
