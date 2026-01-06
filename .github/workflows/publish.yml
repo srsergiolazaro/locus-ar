@@ -27,12 +27,13 @@ jobs:
           git config --global user.name "github-actions[bot]"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci || npm install
 
       - name: Bump version and Publish
         run: |
           # Try to bump version. If it fails (e.g. tag already exists), find the next available version.
-          if ! npm version patch -m "chore: bump version to %s [skip ci]"; then
+          # Using --force to ignore dirty working directory (e.g. from generated files or lockfile changes)
+          if ! npm version patch --force -m "chore: bump version to %s [skip ci]"; then
             echo "⚠️ Tag collision detected. Calculating next available version..."
             
             # Fetch tags to ensure we have the most recent ones
@@ -55,7 +56,7 @@ jobs:
             echo "🚀 Resilience: Bumping to $NEXT_VERSION instead of $(node -p "require('./package.json').version")"
             
             # Set the new version forcibly
-            npm version $NEXT_VERSION --allow-same-version -m "chore: bump version to %s [skip ci]"
+            npm version $NEXT_VERSION --force --allow-same-version -m "chore: bump version to %s [skip ci]"
           fi
           
           # Push the version commit and tag back to the repo
