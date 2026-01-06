@@ -51,7 +51,8 @@
     "scripts": {
         "build": "tsc",
         "prepublishOnly": "npm run build",
-        "test": "vitest"
+        "test": "vitest",
+        "test:react": "vite --port 4321 --open tests/react-test.html"
     },
     "peerDependencies": {
         "aframe": ">=1.5.0",

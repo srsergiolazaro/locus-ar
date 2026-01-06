@@ -1,6 +1,6 @@
 export default {
     server: {
-        allowedHosts: ["testroute.taptapp.xyz"]
+        allowedHosts: ["testroute.taptapp.xyz", "macastro.taptapp.xyz"]
     },
     // esbuild automatically handles .tsx files
     esbuild: {
