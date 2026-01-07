@@ -209,7 +209,18 @@ function handleARUpdate(data: any, markerW: number, markerH: number, controller:
     }
 
     if (data.type === 'updateMatrix') {
-        const { targetIndex, worldMatrix, modelViewTransform, reliabilities, stabilities, screenCoords } = data;
+        const { targetIndex, worldMatrix, modelViewTransform, reliabilities, stabilities, screenCoords, deformedMesh } = data;
+
+        // Central clear for debug canvas
+        const debugCanvas = document.getElementById('debugCanvas') as HTMLCanvasElement;
+        if (debugCanvas) {
+            const ctx = debugCanvas.getContext('2d')!;
+            ctx.clearRect(0, 0, WIDTH, HEIGHT);
+        }
+
+        if (deformedMesh) {
+            drawMesh(deformedMesh);
+        }
 
         // Smooth points regardless of tracking status (they show up when asoma)
         let smoothedCoords = screenCoords || [];
@@ -309,6 +320,29 @@ function drawFeaturePoints(points: any[]) {
     }
 }
 
+function drawMesh(mesh: { vertices: Float32Array, triangles: Uint16Array }) {
+    let debugCanvas = document.getElementById('debugCanvas') as HTMLCanvasElement;
+    if (!debugCanvas) return;
+    const ctx = debugCanvas.getContext('2d')!;
+
+    // Fill triangles for better visibility
+    ctx.fillStyle = 'rgba(0, 255, 255, 0.1)';
+    ctx.strokeStyle = 'rgba(0, 255, 255, 0.4)';
+    ctx.lineWidth = 1;
+
+    const { vertices: v, triangles: t } = mesh;
+    for (let i = 0; i < t.length; i += 3) {
+        const i1 = t[i], i2 = t[i + 1], i3 = t[i + 2];
+        ctx.beginPath();
+        ctx.moveTo(v[i1 * 2], v[i1 * 2 + 1]);
+        ctx.lineTo(v[i2 * 2], v[i2 * 2 + 1]);
+        ctx.lineTo(v[i3 * 2], v[i3 * 2 + 1]);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+    }
+}
+
 function drawPoints(coords: { x: number, y: number }[], stabilities: number[]) {
     // Draw on top of arCanvas (which already has the image)
     // Actually, we should draw on a separate layer or just clear and redraw
@@ -332,7 +366,6 @@ function drawPoints(coords: { x: number, y: number }[], stabilities: number[]) {
         arCanvas.parentElement!.appendChild(debugCanvas);
     }
     const ctx = debugCanvas.getContext('2d')!;
-    ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
     for (let i = 0; i < coords.length; i++) {
         const p = coords[i] as any;

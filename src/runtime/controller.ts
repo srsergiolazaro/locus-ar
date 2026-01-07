@@ -262,14 +262,14 @@ class Controller {
     }
 
     async _trackAndUpdate(inputData: any, lastModelViewTransform: number[][], targetIndex: number) {
-        const { worldCoords, screenCoords, reliabilities, indices = [], octaveIndex = 0 } = await this._workerTrack(
+        const { worldCoords, screenCoords, reliabilities, indices = [], octaveIndex = 0, deformedMesh } = await this._workerTrack(
             inputData,
             lastModelViewTransform,
             targetIndex,
         );
 
         if (!worldCoords || worldCoords.length === 0) {
-            return { modelViewTransform: null, screenCoords: [], reliabilities: [], stabilities: [] };
+            return { modelViewTransform: null, screenCoords: [], reliabilities: [], stabilities: [], deformedMesh: null };
         }
 
         const state = this.trackingStates[targetIndex];
@@ -344,14 +344,16 @@ class Controller {
             stabilities: finalWorldCoords.map((_, i) => {
                 const globalIdx = indices[i];
                 return stabilities[globalIdx];
-            })
+            }),
+            deformedMesh
         });
 
         return {
             modelViewTransform,
             screenCoords: finalScreenCoords,
             reliabilities: finalReliabilities,
-            stabilities: finalStabilities
+            stabilities: finalStabilities,
+            deformedMesh
         };
     }
 
@@ -420,6 +422,7 @@ class Controller {
                             trackingState.screenCoords = result.screenCoords;
                             trackingState.reliabilities = result.reliabilities;
                             trackingState.stabilities = result.stabilities;
+                            (trackingState as any).deformedMesh = result.deformedMesh;
                         }
                     }
 
@@ -465,7 +468,8 @@ class Controller {
                             modelViewTransform: trackingState.currentModelViewTransform,
                             screenCoords: trackingState.screenCoords,
                             reliabilities: trackingState.reliabilities,
-                            stabilities: trackingState.stabilities
+                            stabilities: trackingState.stabilities,
+                            deformedMesh: (trackingState as any).deformedMesh
                         });
                     }
                 }

@@ -1,6 +1,6 @@
 import * as msgpack from "@msgpack/msgpack";
 
-export const CURRENT_VERSION = 7;
+export const CURRENT_VERSION = 8;
 
 /**
  * Morton Order calculation for spatial sorting
@@ -156,6 +156,12 @@ export function decodeTaar(buffer: ArrayBuffer | Uint8Array) {
                 const unpacked = unpack4Bit(rawData, w, h);
                 if (td.data) td.data = unpacked;
                 if (td.d) td.d = unpacked;
+            }
+
+            if (td.mesh) {
+                td.mesh.t = normalizeBuffer(td.mesh.t, Uint16Array);
+                td.mesh.e = normalizeBuffer(td.mesh.e, Uint16Array);
+                td.mesh.rl = normalizeBuffer(td.mesh.rl, Float32Array);
             }
         }
 

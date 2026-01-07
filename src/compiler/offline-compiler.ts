@@ -11,6 +11,7 @@ import { extractTrackingFeatures } from "../core/tracker/extract-utils.js";
 import { DetectorLite } from "../core/detector/detector-lite.js";
 import { build as hierarchicalClusteringBuild } from "../core/matching/hierarchical-clustering.js";
 import * as protocol from "../core/protocol.js";
+import { triangulate, getEdges } from "../core/utils/delaunay.js";
 
 // Detect environment
 const isNode = typeof process !== "undefined" &&
@@ -176,6 +177,15 @@ export class OfflineCompiler {
                         px[i] = td.points[i].x;
                         py[i] = td.points[i].y;
                     }
+                    const triangles = triangulate(td.points);
+                    const edges = getEdges(triangles);
+                    const restLengths = new Float32Array(edges.length);
+                    for (let j = 0; j < edges.length; j++) {
+                        const p1 = td.points[edges[j][0]];
+                        const p2 = td.points[edges[j][1]];
+                        restLengths[j] = Math.sqrt((p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2);
+                    }
+
                     return {
                         w: td.width,
                         h: td.height,
@@ -183,6 +193,11 @@ export class OfflineCompiler {
                         px,
                         py,
                         d: td.data,
+                        mesh: {
+                            t: new Uint16Array(triangles.flat()),
+                            e: new Uint16Array(edges.flat()),
+                            rl: restLengths
+                        }
                     };
                 }),
                 matchingData: item.matchingData.map((kf: any) => ({

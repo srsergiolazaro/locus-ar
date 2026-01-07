@@ -1,4 +1,5 @@
 import { buildModelViewProjectionTransform, computeScreenCoordiate } from "../estimation/utils.js";
+import { refineNonRigid, projectMesh } from "../estimation/non-rigid-refine.js";
 
 const AR2_DEFAULT_TS = 6;
 const AR2_DEFAULT_TS_GAP = 1;
@@ -37,10 +38,14 @@ class Tracker {
         width: keyframe.w,
         height: keyframe.h,
         scale: keyframe.s,
+        mesh: keyframe.mesh,
         // Recyclable projected image buffer
         projectedImage: new Float32Array(keyframe.w * keyframe.h)
       }));
     }
+
+    // Maintain mesh vertices state for temporal continuity
+    this.meshVerticesState = []; // [targetIndex][octaveIndex]
 
     // Pre-allocate template data buffer to avoid garbage collection
     const templateOneSize = AR2_DEFAULT_TS;
@@ -122,7 +127,8 @@ class Tracker {
     const reliabilities = [];
 
     for (let i = 0; i < matchingPoints.length; i++) {
-      if (sim[i] > AR2_SIM_THRESH && i < px.length) {
+      const reliability = sim[i];
+      if (reliability > AR2_SIM_THRESH && i < px.length) {
         goodTrack.push(i);
         const point = computeScreenCoordiate(
           modelViewProjectionTransform,
@@ -135,8 +141,63 @@ class Tracker {
           y: py[i] / scale,
           z: 0,
         });
-        reliabilities.push(sim[i]);
+        reliabilities.push(reliability);
       }
+    }
+
+    // --- 🚀 MOONSHOT: Non-Rigid Mesh Refinement ---
+    let deformedMesh = null;
+    if (prebuilt.mesh && goodTrack.length >= 4) {
+      if (!this.meshVerticesState[targetIndex]) this.meshVerticesState[targetIndex] = [];
+
+      let currentOctaveVertices = this.meshVerticesState[targetIndex][octaveIndex];
+
+      // Initial setup: If no state, use the reference points (normalized) as first guess
+      if (!currentOctaveVertices) {
+        currentOctaveVertices = new Float32Array(px.length * 2);
+        for (let i = 0; i < px.length; i++) {
+          currentOctaveVertices[i * 2] = px[i];
+          currentOctaveVertices[i * 2 + 1] = py[i];
+        }
+      }
+
+      // Data fidelity: Prepare tracked targets for mass-spring
+      const trackedTargets = [];
+      for (let j = 0; j < goodTrack.length; j++) {
+        const idx = goodTrack[j];
+        trackedTargets.push({
+          meshIndex: idx,
+          x: matchingPoints[idx][0] * scale, // Convert back to octave space pixels
+          y: matchingPoints[idx][1] * scale
+        });
+      }
+
+      // Relax mesh in octave space
+      const refinedOctaveVertices = refineNonRigid({
+        mesh: prebuilt.mesh,
+        trackedPoints: trackedTargets,
+        currentVertices: currentOctaveVertices,
+        iterations: 5
+      });
+
+      this.meshVerticesState[targetIndex][octaveIndex] = refinedOctaveVertices;
+
+      // Project deformed mesh to screen space
+      const screenMeshVertices = new Float32Array(refinedOctaveVertices.length);
+      for (let i = 0; i < refinedOctaveVertices.length; i += 2) {
+        const p = computeScreenCoordiate(
+          modelViewProjectionTransform,
+          refinedOctaveVertices[i] / scale,
+          refinedOctaveVertices[i + 1] / scale
+        );
+        screenMeshVertices[i] = p.x;
+        screenMeshVertices[i + 1] = p.y;
+      }
+
+      deformedMesh = {
+        vertices: screenMeshVertices,
+        triangles: prebuilt.mesh.t
+      };
     }
 
     // 2.1 Spatial distribution check: Avoid getting stuck in corners/noise
@@ -164,7 +225,7 @@ class Tracker {
       };
     }
 
-    return { worldCoords, screenCoords, reliabilities, indices: goodTrack, octaveIndex, debugExtra };
+    return { worldCoords, screenCoords, reliabilities, indices: goodTrack, octaveIndex, deformedMesh, debugExtra };
   }
 
   /**
