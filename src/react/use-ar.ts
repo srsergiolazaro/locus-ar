@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ARConfig } from "./types.js";
-import type { SimpleAR as SimpleARType } from "../compiler/simple-ar.js";
+import type { SimpleAR as SimpleARType } from "../runtime/simple-ar.js";
 
 export type ARStatus = "scanning" | "tracking" | "error";
 
@@ -53,7 +53,7 @@ export const useAR = (config: ARConfig): UseARReturn => {
         const initAR = async () => {
             try {
                 // Safe hybrid import for SSR + Speed
-                const { SimpleAR } = await import("../compiler/simple-ar.js");
+                const { SimpleAR } = await import("../runtime/simple-ar.js");
                 if (!isMounted) return;
 
                 const instance = new SimpleAR({

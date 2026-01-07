@@ -1,10 +1,14 @@
-import { Matcher } from "./matching/matcher.js";
-import { Estimator } from "./estimation/estimator.js";
+import { Matcher } from "../core/matching/matcher.js";
+import { Estimator } from "../core/estimation/estimator.js";
+import { Tracker } from "../core/tracker/tracker.js";
+import { DetectorLite } from "../core/detector/detector-lite.js";
 
 let matchingDataList = null;
 let debugMode = false;
 let matcher = null;
 let estimator = null;
+let tracker = null;
+let detector = null;
 
 onmessage = (msg) => {
   const { data } = msg;
@@ -15,6 +19,19 @@ onmessage = (msg) => {
       debugMode = data.debugMode;
       matcher = new Matcher(data.inputWidth, data.inputHeight, debugMode);
       estimator = new Estimator(data.projectionTransform);
+
+      if (data.trackingDataList && data.markerDimensions) {
+        tracker = new Tracker(
+          data.markerDimensions,
+          data.trackingDataList,
+          data.projectionTransform,
+          data.inputWidth,
+          data.inputHeight,
+          debugMode
+        );
+      }
+
+      detector = new DetectorLite(data.inputWidth, data.inputHeight, { useLSH: true });
       break;
 
     case "match":
@@ -22,14 +39,23 @@ onmessage = (msg) => {
 
       let matchedTargetIndex = -1;
       let matchedModelViewTransform = null;
+      let matchedScreenCoords = null;
+      let matchedWorldCoords = null;
       let matchedDebugExtra = null;
+
+      // New: If the worker received image data, run detector here too
+      let featurePoints = data.featurePoints;
+      if (data.inputData) {
+        const detectionResult = detector.detect(data.inputData);
+        featurePoints = detectionResult.featurePoints;
+      }
 
       for (let i = 0; i < interestedTargetIndexes.length; i++) {
         const matchingIndex = interestedTargetIndexes[i];
 
         const { keyframeIndex, screenCoords, worldCoords, debugExtra } = matcher.matchDetection(
           matchingDataList[matchingIndex],
-          data.featurePoints,
+          featurePoints,
         );
         matchedDebugExtra = debugExtra;
 
@@ -39,6 +65,8 @@ onmessage = (msg) => {
           if (modelViewTransform) {
             matchedTargetIndex = matchingIndex;
             matchedModelViewTransform = modelViewTransform;
+            matchedScreenCoords = screenCoords;
+            matchedWorldCoords = worldCoords;
           }
           break;
         }
@@ -48,7 +76,21 @@ onmessage = (msg) => {
         type: "matchDone",
         targetIndex: matchedTargetIndex,
         modelViewTransform: matchedModelViewTransform,
+        screenCoords: matchedScreenCoords,
+        worldCoords: matchedWorldCoords,
+        featurePoints: featurePoints,
         debugExtra: matchedDebugExtra,
+      });
+      break;
+
+    case "track":
+      const { inputData: trackInput, lastModelViewTransform, targetIndex } = data;
+      const trackResult = tracker.track(trackInput, lastModelViewTransform, targetIndex);
+
+      postMessage({
+        type: "trackDone",
+        targetIndex,
+        ...trackResult
       });
       break;
 

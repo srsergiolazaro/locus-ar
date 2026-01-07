@@ -67,7 +67,7 @@ describe('Compiler Performance Benchmark', () => {
 
         // 🚀 Verification Step: Ensure the compiled data actually works!
         console.log(`\n🔍 Verifying compiled data with Controller...`);
-        const { Controller } = await import('../src/compiler/controller.js');
+        const { Controller } = await import('../src/runtime/controller.js');
 
         const controller = new Controller({
             inputWidth: width,

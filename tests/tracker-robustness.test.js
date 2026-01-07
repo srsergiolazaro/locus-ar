@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { Controller } from '../src/compiler/controller.js';
+import { Controller } from '../src/runtime/controller.js';
 import { OfflineCompiler } from '../src/compiler/offline-compiler.js';
-import { DetectorLite } from '../src/compiler/detector/detector-lite.js';
+import { DetectorLite } from '../src/core/detector/detector-lite.js';
 import { Jimp } from 'jimp';
 import path from 'path';
 import fs from 'fs';

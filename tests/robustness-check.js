@@ -10,7 +10,7 @@
  * Run with: node tests/robustness-check.js
  */
 
-import { Controller } from '../src/compiler/controller.js';
+import { Controller } from '../src/runtime/controller.js';
 import { OfflineCompiler } from '../src/compiler/offline-compiler.js';
 
 import { Jimp } from 'jimp';

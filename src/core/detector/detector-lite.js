@@ -19,7 +19,7 @@ const PYRAMID_MIN_SIZE = 4; // Restored to 4 for better small-scale detection
 
 
 const NUM_BUCKETS_PER_DIMENSION = 10;
-const MAX_FEATURES_PER_BUCKET = 30; // Maximized to ensure robustness in Moonshot mode
+const DEFAULT_MAX_FEATURES_PER_BUCKET = 8;
 
 
 const ORIENTATION_NUM_BINS = 36;
@@ -46,6 +46,7 @@ export class DetectorLite {
         this.useGPU = options.useGPU !== undefined ? options.useGPU : globalUseGPU;
         // Protocol V6 (Moonshot): 64-bit LSH is the standard descriptor format
         this.useLSH = options.useLSH !== undefined ? options.useLSH : true;
+        this.maxFeaturesPerBucket = options.maxFeaturesPerBucket !== undefined ? options.maxFeaturesPerBucket : DEFAULT_MAX_FEATURES_PER_BUCKET;
 
         let numOctaves = 0;
         let w = width, h = height;
@@ -104,7 +105,7 @@ export class DetectorLite {
                 y: ext.y * scale + scale * 0.5 - 0.5,
                 scale: scale,
                 angle: ext.angle || 0,
-                descriptors: (this.useLSH && ext.lsh) ? ext.descriptors : (ext.descriptors || [])
+                descriptors: (this.useLSH && ext.lsh) ? ext.lsh : (ext.descriptors || [])
             };
         });
 
@@ -138,7 +139,11 @@ export class DetectorLite {
             }
         }
 
-        // Original CPU implementation
+        // Buffer management: Reuse arrays if dimensions match to reduce GC
+        if (!this._pyramidBuffers || this._pyramidBuffers.width !== width || this._pyramidBuffers.height !== height) {
+            this._pyramidBuffers = { width, height, temp: new Float32Array(width * height) };
+        }
+
         const pyramid = [];
         let currentData = data;
         let currentWidth = width;
@@ -146,10 +151,6 @@ export class DetectorLite {
 
         for (let i = 0; i < this.numOctaves; i++) {
             const img1 = this._applyGaussianFilter(currentData, currentWidth, currentHeight);
-
-            // Only need the second blur if we are going to compute DoG with the NEXT layer
-            // or if we need it for this octave's DoG.
-            // Actually, for maxOctaves=1, we only need img1 and maybe img2 for one DoG layer.
             const img2 = this._applyGaussianFilter(img1.data, currentWidth, currentHeight);
 
             pyramid.push([
@@ -157,7 +158,6 @@ export class DetectorLite {
                 { data: img2.data, width: currentWidth, height: currentHeight }
             ]);
 
-            // Downsample para siguiente octava - Only if we have more octaves to go
             if (i < this.numOctaves - 1) {
                 const downsampled = this._downsample(img2.data, currentWidth, currentHeight);
                 currentData = downsampled.data;
@@ -174,7 +174,7 @@ export class DetectorLite {
      */
     _applyGaussianFilter(data, width, height) {
         const output = new Float32Array(width * height);
-        const temp = new Float32Array(width * height);
+        const temp = this._pyramidBuffers?.temp || new Float32Array(width * height);
         const k0 = 0.0625, k1 = 0.25, k2 = 0.375; // 1/16, 4/16, 6/16
         const w1 = width - 1;
 
@@ -350,7 +350,7 @@ export class DetectorLite {
      */
     _applyPrune(extremas) {
         const nBuckets = NUM_BUCKETS_PER_DIMENSION;
-        const nFeatures = MAX_FEATURES_PER_BUCKET;
+        const nFeatures = this.maxFeaturesPerBucket;
 
         // Agrupar por buckets
         const buckets = [];

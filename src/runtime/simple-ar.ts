@@ -1,6 +1,6 @@
 import { Controller } from "./controller.js";
 import { OneEuroFilter } from "../libs/one-euro-filter.js";
-import { projectToScreen } from "./utils/projection.js";
+import { projectToScreen } from "../core/utils/projection.js";
 
 /**
  * 🍦 SimpleAR - Dead-simple vanilla AR for image overlays

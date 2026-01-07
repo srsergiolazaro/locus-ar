@@ -5,28 +5,14 @@
  * Usa JavaScript puro para máxima velocidad.
  */
 import { parentPort } from 'node:worker_threads';
-import { extractTrackingFeatures } from './tracker/extract-utils.js';
-import { buildTrackingImageList } from './image-list.js';
-import { DetectorLite } from './detector/detector-lite.js';
-import { build as hierarchicalClusteringBuild } from './matching/hierarchical-clustering.js';
+import { extractTrackingFeatures } from '../core/tracker/extract-utils.js';
+import { buildTrackingImageList } from '../core/image-list.js';
+import { DetectorLite } from '../core/detector/detector-lite.js';
+import { build as hierarchicalClusteringBuild } from '../core/matching/hierarchical-clustering.js';
+import { getMorton } from '../core/protocol.js';
 
 if (!parentPort) {
     throw new Error('This file must be run as a worker thread.');
-}
-
-// Helper for Morton Order sorting inside worker
-function getMorton(x, y) {
-    let x_int = x | 0;
-    let y_int = y | 0;
-    x_int = (x_int | (x_int << 8)) & 0x00FF00FF;
-    x_int = (x_int | (x_int << 4)) & 0x0F0F0F0F;
-    x_int = (x_int | (x_int << 2)) & 0x33333333;
-    x_int = (x_int | (x_int << 1)) & 0x55555555;
-    y_int = (y_int | (y_int << 8)) & 0x00FF00FF;
-    y_int = (y_int | (y_int << 4)) & 0x0F0F0F0F;
-    y_int = (y_int | (y_int << 2)) & 0x33333333;
-    y_int = (y_int | (y_int << 1)) & 0x55555555;
-    return x_int | (y_int << 1);
 }
 
 const mortonCache = new Int32Array(2048); // Cache for sorting stability

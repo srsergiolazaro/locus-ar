@@ -2,7 +2,7 @@ import { buildModelViewProjectionTransform, computeScreenCoordiate } from "../es
 
 const AR2_DEFAULT_TS = 6;
 const AR2_DEFAULT_TS_GAP = 1;
-const AR2_SEARCH_SIZE = 25; // Reduced from 34 to 25 to prevent background latching
+const AR2_SEARCH_SIZE = 12; // Reduced from 25 to 12 for high-speed tracking (25 is overkill)
 const AR2_SEARCH_GAP = 1;
 const AR2_SIM_THRESH = 0.65; // Increased from 0.6 to reduce false positives
 
@@ -156,7 +156,8 @@ class Tracker {
     if (this.debugMode) {
       debugExtra = {
         octaveIndex,
-        projectedImage: Array.from(projectedImage),
+        // Remove Array.from to avoid massive GC pressure
+        projectedImage: projectedImage,
         matchingPoints,
         goodTrack,
         trackedPoints: screenCoords,

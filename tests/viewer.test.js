@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { Controller } from '../src/compiler/controller.js';
+import { Controller } from '../src/runtime/controller.js';
 import { OfflineCompiler } from '../src/compiler/offline-compiler.js';
-import { Matcher } from '../src/compiler/matching/matcher.js';
-import { Estimator } from '../src/compiler/estimation/estimator.js';
-import { DetectorLite } from '../src/compiler/detector/detector-lite.js';
+import { Matcher } from '../src/core/matching/matcher.js';
+import { Estimator } from '../src/core/estimation/estimator.js';
+import { DetectorLite } from '../src/core/detector/detector-lite.js';
 import { Jimp } from 'jimp';
 import { fileURLToPath } from 'url';
 import path from 'path';

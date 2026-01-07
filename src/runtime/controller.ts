@@ -1,11 +1,11 @@
-import { Tracker } from "./tracker/tracker.js";
-import { OfflineCompiler as Compiler } from "./offline-compiler.js";
-import { InputLoader } from "./input-loader.js";
-import { FeatureManager } from "./features/feature-manager.js";
-import { OneEuroFilterFeature } from "./features/one-euro-filter-feature.js";
-import { TemporalFilterFeature } from "./features/temporal-filter-feature.js";
-import { AutoRotationFeature } from "./features/auto-rotation-feature.js";
-import { DetectorLite } from "./detector/detector-lite.js";
+import { Tracker } from "../core/tracker/tracker.js";
+import { InputLoader } from "../core/input-loader.js";
+import { FeatureManager } from "../core/features/feature-manager.js";
+import { OneEuroFilterFeature } from "../core/features/one-euro-filter-feature.js";
+import { TemporalFilterFeature } from "../core/features/temporal-filter-feature.js";
+import { AutoRotationFeature } from "../core/features/auto-rotation-feature.js";
+import { DetectorLite } from "../core/detector/detector-lite.js";
+import * as protocol from "../core/protocol.js";
 
 let ControllerWorker: any;
 
@@ -61,6 +61,7 @@ class Controller {
     matchingDataList: any;
     workerMatchDone: ((data: any) => void) | null = null;
     workerTrackDone: ((data: any) => void) | null = null;
+    workerFullTrackDone: ((data: any) => void) | null = null;
     mainThreadMatcher: any;
     mainThreadEstimator: any;
     featureManager: FeatureManager;
@@ -143,6 +144,9 @@ class Controller {
             if (e.data.type === "matchDone" && this.workerMatchDone !== null) {
                 this.workerMatchDone(e.data);
             }
+            if (e.data.type === "trackDone" && this.workerFullTrackDone !== null) {
+                this.workerFullTrackDone(e.data);
+            }
             if (e.data.type === "trackUpdateDone" && this.workerTrackDone !== null) {
                 this.workerTrackDone(e.data);
             }
@@ -174,9 +178,8 @@ class Controller {
         const allDimensions: any[] = [];
 
         for (const buffer of buffers) {
-            const compiler = new Compiler();
-            const result = compiler.importData(buffer);
-            const dataList = (result as any).dataList || [];
+            const result = protocol.decodeTaar(buffer);
+            const dataList = result.dataList || [];
 
             for (const item of dataList) {
                 allMatchingData.push(item.matchingData);
@@ -194,6 +197,7 @@ class Controller {
             this.debugMode,
         );
 
+
         this._ensureWorker();
         if (this.worker) {
             this.worker.postMessage({
@@ -203,6 +207,8 @@ class Controller {
                 projectionTransform: this.projectionTransform,
                 debugMode: this.debugMode,
                 matchingDataList: allMatchingData,
+                trackingDataList: allTrackingData,
+                markerDimensions: allDimensions
             });
         }
 
@@ -247,20 +253,24 @@ class Controller {
     }
 
     async _detectAndMatch(inputData: any, targetIndexes: number[]) {
-        const { featurePoints } = this.fullDetector!.detect(inputData);
-        const { targetIndex: matchedTargetIndex, modelViewTransform } = await this._workerMatch(
-            featurePoints,
+        const { targetIndex, modelViewTransform, screenCoords, worldCoords, featurePoints } = await this._workerMatch(
+            null, // No feature points, worker will detect from inputData
             targetIndexes,
+            inputData
         );
-        return { targetIndex: matchedTargetIndex, modelViewTransform };
+        return { targetIndex, modelViewTransform, screenCoords, worldCoords, featurePoints };
     }
 
     async _trackAndUpdate(inputData: any, lastModelViewTransform: number[][], targetIndex: number) {
-        const { worldCoords, screenCoords, reliabilities, indices = [], octaveIndex = 0 } = this.tracker!.track(
+        const { worldCoords, screenCoords, reliabilities, indices = [], octaveIndex = 0 } = await this._workerTrack(
             inputData,
             lastModelViewTransform,
             targetIndex,
         );
+
+        if (!worldCoords || worldCoords.length === 0) {
+            return { modelViewTransform: null, screenCoords: [], reliabilities: [], stabilities: [] };
+        }
 
         const state = this.trackingStates[targetIndex];
         if (!state.pointStabilities) state.pointStabilities = [];
@@ -377,13 +387,17 @@ class Controller {
                         matchingIndexes.push(i);
                     }
 
-                    const { targetIndex: matchedTargetIndex, modelViewTransform } =
+                    const { targetIndex: matchedTargetIndex, modelViewTransform, featurePoints } =
                         await this._detectAndMatch(inputData, matchingIndexes);
 
                     if (matchedTargetIndex !== -1) {
                         this.trackingStates[matchedTargetIndex].isTracking = true;
                         this.trackingStates[matchedTargetIndex].currentModelViewTransform = modelViewTransform;
                     }
+
+                    // If we have feature points, we can store them in a special "lastSeenFeatures" 
+                    // or just pass them in processDone for general visualization
+                    this.onUpdate && this.onUpdate({ type: "featurePoints", featurePoints });
                 }
 
                 for (let i = 0; i < this.trackingStates.length; i++) {
@@ -495,10 +509,20 @@ class Controller {
         return this._workerTrackUpdate(modelViewTransform, trackFeatures);
     }
 
-    _workerMatch(featurePoints: any, targetIndexes: number[]): Promise<any> {
+    _workerMatch(featurePoints: any, targetIndexes: number[], inputData: any = null): Promise<any> {
         return new Promise((resolve) => {
             if (!this.worker) {
-                this._matchOnMainThread(featurePoints, targetIndexes).then(resolve).catch(() => resolve({ targetIndex: -1 }));
+                // If no feature points but we have input data, detect first
+                let fpPromise;
+                if (!featurePoints && inputData) {
+                    fpPromise = Promise.resolve(this.fullDetector!.detect(inputData).featurePoints);
+                } else {
+                    fpPromise = Promise.resolve(featurePoints);
+                }
+
+                fpPromise.then(fp => {
+                    this._matchOnMainThread(fp, targetIndexes).then(resolve);
+                }).catch(() => resolve({ targetIndex: -1 }));
                 return;
             }
 
@@ -515,17 +539,50 @@ class Controller {
                     modelViewTransform: data.modelViewTransform,
                     screenCoords: data.screenCoords,
                     worldCoords: data.worldCoords,
+                    featurePoints: data.featurePoints,
                     debugExtra: data.debugExtra,
                 });
             };
-            this.worker.postMessage({ type: "match", featurePoints: featurePoints, targetIndexes });
+
+            if (inputData) {
+                this.worker.postMessage({ type: "match", inputData, targetIndexes });
+            } else {
+                this.worker.postMessage({ type: "match", featurePoints: featurePoints, targetIndexes });
+            }
+        });
+    }
+
+    _workerTrack(inputData: any, lastModelViewTransform: number[][], targetIndex: number): Promise<any> {
+        return new Promise((resolve) => {
+            if (!this.worker) {
+                resolve(this.tracker!.track(inputData, lastModelViewTransform, targetIndex));
+                return;
+            }
+
+            const timeout = setTimeout(() => {
+                this.workerFullTrackDone = null;
+                resolve({ worldCoords: [], screenCoords: [], reliabilities: [] });
+            }, WORKER_TIMEOUT_MS);
+
+            this.workerFullTrackDone = (data: any) => {
+                clearTimeout(timeout);
+                this.workerFullTrackDone = null;
+                resolve(data);
+            };
+
+            this.worker.postMessage({
+                type: "track",
+                inputData,
+                lastModelViewTransform,
+                targetIndex
+            });
         });
     }
 
     async _matchOnMainThread(featurePoints: any, targetIndexes: number[]) {
         if (!this.mainThreadMatcher) {
-            const { Matcher } = await import("./matching/matcher.js");
-            const { Estimator } = await import("./estimation/estimator.js");
+            const { Matcher } = await import("../core/matching/matcher.js");
+            const { Estimator } = await import("../core/estimation/estimator.js");
             this.mainThreadMatcher = new Matcher(this.inputWidth, this.inputHeight, this.debugMode);
             this.mainThreadEstimator = new Estimator(this.projectionTransform);
         }
@@ -595,7 +652,7 @@ class Controller {
 
     async _trackUpdateOnMainThread(modelViewTransform: number[][], trackingFeatures: any) {
         if (!this.mainThreadEstimator) {
-            const { Estimator } = await import("./estimation/estimator.js");
+            const { Estimator } = await import("../core/estimation/estimator.js");
             this.mainThreadEstimator = new Estimator(this.projectionTransform);
         }
 

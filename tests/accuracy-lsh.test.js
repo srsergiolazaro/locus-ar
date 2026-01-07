@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { binarizeFREAK128 } from '../src/compiler/utils/lsh-binarizer.js';
+import { binarizeFREAK128 } from '../src/core/utils/lsh-binarizer.js';
 
 describe('LSH Binarizer Accuracy', () => {
     it('should generate consistent hashes', () => {

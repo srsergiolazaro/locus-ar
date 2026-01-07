@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { Matcher } from '../src/compiler/matching/matcher.js';
+import { Matcher } from '../src/core/matching/matcher.js';
 import { OfflineCompiler } from '../src/compiler/offline-compiler.js';
-import { DetectorLite } from '../src/compiler/detector/detector-lite.js';
+import { DetectorLite } from '../src/core/detector/detector-lite.js';
 import { Jimp } from 'jimp';
 import { fileURLToPath } from 'url';
 import path from 'path';

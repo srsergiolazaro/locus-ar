@@ -1,6 +1,6 @@
-import { Controller } from '../src/compiler/controller.js';
+import { Controller } from '../src/runtime/controller.js';
 import { OfflineCompiler } from '../src/compiler/offline-compiler.js';
-import { projectToScreen } from '../src/compiler/utils/projection.js';
+import { projectToScreen } from '../src/core/utils/projection.js';
 
 const ASSET_URL = './assets/test-image.png';
 const WIDTH = 640;
@@ -201,6 +201,13 @@ async function init() {
 function handleARUpdate(data: any, markerW: number, markerH: number, controller: Controller) {
     if (data.type === 'processDone') return;
 
+    if (data.type === 'featurePoints') {
+        const { featurePoints } = data;
+        if (featurePoints) {
+            drawFeaturePoints(featurePoints);
+        }
+    }
+
     if (data.type === 'updateMatrix') {
         const { targetIndex, worldMatrix, modelViewTransform, reliabilities, stabilities, screenCoords } = data;
 
@@ -268,6 +275,36 @@ function handleARUpdate(data: any, markerW: number, markerH: number, controller:
                 const ctx = debugCanvas.getContext('2d')!;
                 ctx.clearRect(0, 0, WIDTH, HEIGHT);
             }
+        }
+    }
+}
+
+function drawFeaturePoints(points: any[]) {
+    let debugCanvas = document.getElementById('debugCanvas') as HTMLCanvasElement;
+    if (!debugCanvas) {
+        debugCanvas = document.createElement('canvas');
+        debugCanvas.id = 'debugCanvas';
+        debugCanvas.width = WIDTH;
+        debugCanvas.height = HEIGHT;
+        debugCanvas.style.position = 'absolute';
+        debugCanvas.style.top = '0';
+        debugCanvas.style.left = '0';
+        debugCanvas.style.width = '100%';
+        debugCanvas.style.height = '100%';
+        debugCanvas.style.objectFit = 'cover';
+        debugCanvas.style.pointerEvents = 'none';
+        debugCanvas.style.zIndex = '3';
+        arCanvas.parentElement!.appendChild(debugCanvas);
+    }
+    const ctx = debugCanvas.getContext('2d')!;
+    // Only clear if we are NOT tracking (tracking draws its own points)
+    if (arStatus.textContent === 'Searching') {
+        ctx.clearRect(0, 0, WIDTH, HEIGHT);
+        for (const p of points) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 0, 0.5)'; // Yellow for searching
+            ctx.fill();
         }
     }
 }

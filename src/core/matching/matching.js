@@ -7,7 +7,7 @@ import { multiplyPointHomographyInhomogenous, matrixInverse33 } from "../utils/g
 const INLIER_THRESHOLD = 5.0; // Tightened from 10 to 5 for better precision
 const MIN_NUM_INLIERS = 8;  // Restored to 8
 const CLUSTER_MAX_POP = 20;
-const HAMMING_THRESHOLD = 0.8; // Tightened from 0.85 to 0.8 for cleaner matches
+const HAMMING_THRESHOLD = 0.85; // Relaxed from 0.8 back to 0.85
 
 // match list of querpoints against pre-built list of keyframes
 const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) => {
