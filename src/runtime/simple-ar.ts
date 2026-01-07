@@ -18,7 +18,8 @@ export interface SimpleAROptions {
         worldMatrix: number[],
         screenCoords?: { x: number, y: number }[],
         reliabilities?: number[],
-        stabilities?: number[]
+        stabilities?: number[],
+        detectionPoints?: { x: number, y: number }[]
     }) => void) | null;
     cameraConfig?: MediaStreamConstraints['video'];
     debug?: boolean;
@@ -36,7 +37,8 @@ class SimpleAR {
         worldMatrix: number[],
         screenCoords?: { x: number, y: number }[],
         reliabilities?: number[],
-        stabilities?: number[]
+        stabilities?: number[],
+        detectionPoints?: { x: number, y: number }[]
     }) => void) | null;
     cameraConfig: MediaStreamConstraints['video'];
     debug: boolean;
@@ -163,7 +165,7 @@ class SimpleAR {
             if (this.debug) this._updateDebugPanel(this.isTracking);
         }
 
-        const { targetIndex, worldMatrix, modelViewTransform, screenCoords, reliabilities, stabilities } = data;
+        const { targetIndex, worldMatrix, modelViewTransform, screenCoords, reliabilities, stabilities, detectionPoints } = data;
 
         // Project points to screen coordinates
         let projectedPoints = [];
@@ -197,6 +199,37 @@ class SimpleAR {
             });
         }
 
+        let projectedDetectionPoints = [];
+        if (detectionPoints && detectionPoints.length > 0) {
+            const containerRect = this.container.getBoundingClientRect();
+            const videoW = this.video!.videoWidth;
+            const videoH = this.video!.videoHeight;
+            const isPortrait = containerRect.height > containerRect.width;
+            const isVideoLandscape = videoW > videoH;
+            const needsRotation = isPortrait && isVideoLandscape;
+            const proj = this.controller!.projectionTransform;
+
+            const vW = needsRotation ? videoH : videoW;
+            const vH = needsRotation ? videoW : videoH;
+            const pScale = Math.max(containerRect.width / vW, containerRect.height / vH);
+            const dW = vW * pScale;
+            const dH = vH * pScale;
+            const oX = (containerRect.width - dW) / 2;
+            const oY = (containerRect.height - dH) / 2;
+
+            projectedDetectionPoints = detectionPoints.map((p: any) => {
+                let sx, sy;
+                if (needsRotation) {
+                    sx = oX + (dW / 2) - (p.y - proj[1][2]) * pScale;
+                    sy = oY + (dH / 2) + (p.x - proj[0][2]) * pScale;
+                } else {
+                    sx = oX + (dW / 2) + (p.x - proj[0][2]) * pScale;
+                    sy = oY + (dH / 2) + (p.y - proj[1][2]) * pScale;
+                }
+                return { x: sx, y: sy };
+            });
+        }
+
         if (worldMatrix) {
             if (!this.isTracking) {
                 this.isTracking = true;
@@ -215,13 +248,14 @@ class SimpleAR {
         }
 
         // Always notify the callback if we have points, or if we just lost tracking
-        if (projectedPoints.length > 0 || (worldMatrix === null && data.type === 'updateMatrix')) {
+        if (projectedPoints.length > 0 || projectedDetectionPoints.length > 0 || (worldMatrix === null && data.type === 'updateMatrix')) {
             this.onUpdateCallback && this.onUpdateCallback({
                 targetIndex,
                 worldMatrix,
                 screenCoords: projectedPoints,
                 reliabilities: reliabilities || [],
-                stabilities: stabilities || []
+                stabilities: stabilities || [],
+                detectionPoints: projectedDetectionPoints
             });
         }
     }

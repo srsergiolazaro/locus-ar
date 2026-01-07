@@ -62,9 +62,10 @@ export const useAR = (config: ARConfig): UseARReturn => {
                     overlay: overlayRef.current!,
                     scale: config.scale,
                     debug: false,
-                    onUpdate: ({ screenCoords, reliabilities, stabilities }) => {
+                    onUpdate: (data: any) => {
+                        const { screenCoords, reliabilities, stabilities } = data;
                         if (screenCoords && reliabilities && stabilities) {
-                            const points = screenCoords.map((p, i) => ({
+                            const points = screenCoords.map((p: any, i: number) => ({
                                 x: p.x,
                                 y: p.y,
                                 reliability: reliabilities[i],

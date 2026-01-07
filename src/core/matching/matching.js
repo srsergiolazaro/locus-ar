@@ -3,6 +3,9 @@ import { compute as hammingCompute } from "./hamming-distance.js";
 import { computeHoughMatches } from "./hough.js";
 import { computeHomography } from "./ransacHomography.js";
 import { multiplyPointHomographyInhomogenous, matrixInverse33 } from "../utils/geometry.js";
+import { FourierEncoder } from "../utils/fourier-encoder.js";
+
+const encoder = new FourierEncoder(4);
 
 const INLIER_THRESHOLD = 5.0; // Tightened from 10 to 5 for better precision
 const MIN_NUM_INLIERS = 8;  // Restored to 8
@@ -108,7 +111,7 @@ const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) =>
 
   // Second pass with homography guided matching
   const HInv = matrixInverse33(H, 0.00001);
-  const dThreshold2 = 100; // 10 * 10
+  const dThreshold2 = 400; // 20 * 20 - Expanded search window thanks to Fourier filtering
   const matches2 = [];
 
   const hi00 = HInv[0], hi01 = HInv[1], hi02 = HInv[2];
@@ -132,8 +135,11 @@ const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) =>
     const col = querypoint.maxima ? kmax : kmin;
     if (!col) continue;
 
-    const cx = col.x, cy = col.y, cd = col.d;
+    const cx = col.x, cy = col.y, cd = col.d, cf = col.f;
     const qDesc = querypoint.descriptors;
+
+    // Fourier encoding of the mapped point (where it SHOULD be in the keyframe)
+    const qFourier = encoder.encode(mapX / keyframe.w, mapY / keyframe.h);
 
     for (let k = 0, clen = cx.length; k < clen; k++) {
       const dx = cx[k] - mapX;
@@ -141,6 +147,19 @@ const match = ({ keyframe, querypoints, querywidth, queryheight, debugMode }) =>
       const d2 = dx * dx + dy * dy;
 
       if (d2 > dThreshold2) continue;
+
+      // 🚀 MOONSHOT: Fourier Spatial Harmony Check
+      // We check if the stored point's Fourier signature matches its predicted position
+      let fourierSim = 0;
+      if (cf) {
+        for (let fidx = 0; fidx < 16; fidx++) {
+          fourierSim += (cf[k * 16 + fidx] / 127) * qFourier[fidx];
+        }
+      } else {
+        fourierSim = 16; // Backward compatibility
+      }
+
+      if (fourierSim < 8) continue; // Reject if spatially dissonant (low harmonic match)
 
       const d = hammingCompute({ v1: cd, v1Offset: k * descSize, v2: qDesc });
 
