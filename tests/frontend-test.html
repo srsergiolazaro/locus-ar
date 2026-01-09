@@ -24,7 +24,6 @@
 
     <script type="module">
         import { OfflineCompiler } from '../src/compiler/offline-compiler.js';
-        import { gpuCompute } from '../src/compiler/utils/gpu-compute.js';
 
         const log = document.getElementById('log');
         const mode = document.getElementById('mode');
@@ -150,17 +149,6 @@
         // Init
         clearLog();
         print('Modules loaded OK');
-
-        try {
-            gpuCompute.init();
-            const isGPU = gpuCompute.isGPUAvailable();
-            mode.textContent = isGPU ? '🚀 GPU (WebGL)' : '⚡ CPU (JavaScript)';
-            mode.style.color = isGPU ? 'green' : 'orange';
-            print('GPU: ' + (isGPU ? 'Available' : 'Not available'));
-        } catch (e) {
-            mode.textContent = '⚡ CPU';
-            print('GPU Error: ' + e.message);
-        }
 
         print('\nReady.');
         runBtn.textContent = 'Run Synthetic Benchmark';

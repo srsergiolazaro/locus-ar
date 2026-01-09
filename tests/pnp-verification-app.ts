@@ -82,20 +82,20 @@ async function run() {
         // 5. Match
         log('Running Matcher (HDC-Based)...', 'info');
         const matcher = new Matcher(WIDTH, HEIGHT, false);
-        const matchingResult = matcher.matchDetection(targetData, featurePoints);
+        const matchingResult = matcher.matchDetection(targetData[0].matchingData, featurePoints);
 
-        if (!matchingResult) {
+        if (matchingResult.keyframeIndex === -1 || !matchingResult.screenCoords) {
             throw new Error('Matching failed. No valid target found in image.');
         }
 
-        log(`Match Success! Octave: ${matchingResult.octaveIndex}, Inliers: ${matchingResult.screenCoords.length}`, 'success');
+        log(`Match Success! Keyframe: ${matchingResult.keyframeIndex}, Inliers: ${matchingResult.screenCoords.length}`, 'success');
 
         // 6. Pose Estimation (PnP)
         log('Solving 3D Pose (PnP Solver)...', 'info');
         const estimator = new Estimator(K);
         const pose = estimator.estimate({
             screenCoords: matchingResult.screenCoords,
-            worldCoords: matchingResult.worldCoords
+            worldCoords: matchingResult.worldCoords as any
         });
 
         if (!pose) {
@@ -148,7 +148,7 @@ async function run() {
             log('Verification Complete. Mesh projected correctly.', 'success');
         }
 
-    } catch (err) {
+    } catch (err: any) {
         log(`ERROR: ${err.message}`, 'error');
     } finally {
         runBtn.removeAttribute('disabled');

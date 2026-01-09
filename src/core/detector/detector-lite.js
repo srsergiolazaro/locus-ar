@@ -13,7 +13,6 @@
 import { FREAKPOINTS } from "./freak.js";
 import { gpuCompute } from "../utils/gpu-compute.js";
 import { computeLSH64, computeFullFREAK, packLSHIntoDescriptor } from "../utils/lsh-direct.js";
-import { generateBasis, projectDescriptor, compressToSignature } from "../matching/hdc.js";
 import { HDC_SEED } from "../protocol.js";
 
 const PYRAMID_MIN_SIZE = 4; // Restored to 4 for better small-scale detection
@@ -99,16 +98,7 @@ export class DetectorLite {
         // 6. Calcular descriptores FREAK
         this._computeFreakDescriptors(prunedExtremas, pyramidImages);
 
-        // 7. 🚀 MOONSHOT: HDC Hyper-projection
-        if (this.useHDC) {
-            const hdcBasis = generateBasis(HDC_SEED, 1024);
-            for (const ext of prunedExtremas) {
-                if (ext.lsh) {
-                    const hv = projectDescriptor(ext.lsh, hdcBasis);
-                    ext.hdcSignature = compressToSignature(hv);
-                }
-            }
-        }
+
 
         // Convertir a formato de salida
         const featurePoints = prunedExtremas.map(ext => {
@@ -119,8 +109,8 @@ export class DetectorLite {
                 y: ext.y * scale + scale * 0.5 - 0.5,
                 scale: scale,
                 angle: ext.angle || 0,
+                score: ext.absScore, // Pass through score for sorting in Matcher
                 descriptors: (this.useLSH && ext.lsh) ? ext.lsh : (ext.descriptors || []),
-                hdcSignature: ext.hdcSignature || 0,
                 imageData: data // Pass source image for refinement
             };
         });
