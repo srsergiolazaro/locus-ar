@@ -94,8 +94,9 @@ export const TaptappAR: React.FC<TaptappARProps> = ({
                 <div className="taptapp-ar-points-overlay" style={{ opacity: status === "tracking" ? 1 : 0.6 }}>
                     {trackedPoints
                         .map((point, i) => {
-                            const isStable = point.stability > 0.8 && point.reliability > 0.5;
-                            const size = (2 + point.reliability * 6) * (0.6 + point.stability * 0.4);
+                            // 🚀 Reflex visualization of the engine's new sensitivity
+                            const isStable = point.stability > 0.3 && point.reliability > 0.2;
+                            const size = (3 + point.reliability * 8) * (0.7 + point.stability * 0.3);
 
                             return (
                                 <div
@@ -106,9 +107,10 @@ export const TaptappAR: React.FC<TaptappARProps> = ({
                                         top: `${point.y}px`,
                                         width: `${size}px`,
                                         height: `${size}px`,
-                                        opacity: (0.3 + (point.reliability * 0.5)) * (0.2 + point.stability * 0.8),
-                                        backgroundColor: isStable ? 'black' : '#00ff00',
-                                        boxShadow: isStable ? '0 0 2px rgba(255, 255, 255, 0.8)' : '0 0 8px #00ff00'
+                                        opacity: (0.4 + (point.reliability * 0.5)) * (0.3 + point.stability * 0.7),
+                                        backgroundColor: isStable ? '#00e5ff' : '#ffffff',
+                                        boxShadow: isStable ? '0 0 10px #00e5ff' : '0 0 5px rgba(255,255,255,0.5)',
+                                        border: 'none'
                                     }}
                                 />
                             );

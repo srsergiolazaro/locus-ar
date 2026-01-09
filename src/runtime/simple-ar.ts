@@ -149,6 +149,8 @@ class SimpleAR {
             inputWidth: this.video!.videoWidth,
             inputHeight: this.video!.videoHeight,
             debugMode: this.debug,
+            warmupTolerance: 3, // 🚀 Faster lock than default
+            missTolerance: 10,   // 🛡️ More resilient to temporary occlusion
             onUpdate: (data) => this._handleUpdate(data)
         });
     }
