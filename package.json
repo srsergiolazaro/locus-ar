@@ -41,7 +41,10 @@
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
         },
-        "./compiler/*": "./dist/compiler/*"
+        "./compiler": {
+            "types": "./dist/compiler/offline-compiler.d.ts",
+            "import": "./dist/compiler/offline-compiler.js"
+        }
     },
     "files": [
         "dist",
@@ -49,7 +52,9 @@
         "LICENSE"
     ],
     "scripts": {
-        "build": "tsc",
+        "build": "tsc && node scripts/minify-dist.mjs",
+        "build:dev": "tsc",
+        "minify": "node scripts/minify-dist.mjs",
         "prepublishOnly": "npm run build",
         "test": "vitest",
         "test:react": "vite --port 4321 --open tests/reliability-test.html",
@@ -88,6 +93,7 @@
         "jimp": "^1.6.0",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
+        "terser": "^5.44.1",
         "typescript": "^5.4.5",
         "vitest": "^4.0.16"
     },
