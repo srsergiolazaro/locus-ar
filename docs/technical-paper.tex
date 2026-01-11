@@ -216,6 +216,24 @@ A 1024×1024 pixel test image with rich texture and edge content was used for be
     \item \textbf{TensorFlow dependency}: Binary indicator
 \end{enumerate}
 
+\subsection{Client-Side JIT Compilation}
+
+A key innovation of Protocol V7 is "Just-In-Time" (JIT) compilation. Unlike traditional approaches requiring offline pre-processing, our engine performs the entire feature extraction pipeline on the client device in under 1 second.
+
+\begin{itemize}
+    \item \textbf{Input}: Raw HTMLImageElement or URL
+    \item \textbf{Process}: 
+    \begin{enumerate}
+        \item Downsample to 1280px max dimension
+        \item Multi-octave feature detection
+        \item LSH descriptor generation
+        \item 3D Mesh triangulation
+    \end{enumerate}
+    \item \textbf{Output}: In-memory binary buffer ready for tracking
+\end{itemize}
+
+This eliminates the "authoring bottleneck," allowing developers to use any image as a target dynamically without build steps.
+
 \section{Results}
 
 \subsection{Performance Comparison}

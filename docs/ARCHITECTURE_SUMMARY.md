@@ -8,10 +8,11 @@
 
 | Métrica | TapTapp AR | MindAR | ARjs |
 |---------|------------|--------|------|
-| **Tiempo compilación** | **~1.15s ✅** | ~23.5s | N/A |
+| **Compilation Time** | **~0s (Client-Side JIT) ✅** | ~23.5s | N/A |
 | **Bundle size** | <100KB ✅ | ~20MB | ~1MB |
 | **Optimización** | **Nanite Virtualized (V11) 🚀** | No | No |
-| **Tamaño Target** | **~100KB ✅** | ~770KB | N/A |
+| **Tamaño Target** | **~100KB (Optional) ✅** | ~770KB | N/A |
+| **Resolución** | **HD 1280x960 💎** | 640x480 | Auto |
 
 ---
 

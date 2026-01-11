@@ -83,35 +83,52 @@ TapTapp AR es un SDK de realidad aumentada basado en **Image Tracking** (Natural
                     └──────────────┬────────────────┘
                                    │
                     ┌──────────────▼────────────────┐
-                    │      🎥 RUNTIME CONTROLLER    │
-                    │      (controller.ts)          │
+                    │      🎥 RUNTIME TRACKER       │
+                    │      (src/runtime/track.ts)   │
                     │                               │
+                    │ ┌───────────────────────────┐ │
+                    │ │ JIT Compilation (New*)    │ │
+                    │ │ 1. fetch(image/taar)      │ │
+                    │ │ 2. compile(if needed)     │ │
+                    │ │ 3. init(BioController)    │ │
+                    │ └───────────────────────────┘ │
+                    │             │                 │
                     │ ┌───────────────────────────┐ │
                     │ │ Loop Principal:           │ │
                     │ │ while(processingVideo) {  │ │
-                    │ │   1. loadInput()          │ │
+                    │ │   1. loadInput(HD 960p)   │ │
                     │ │   2. detect() + match()   │ │
                     │ │   3. track() + update()   │ │
-                    │ │   4. refineEstimate()     │ │
-                    │ │   5. applyFilters()       │ │
-                    │ │   6. onUpdate(matrix)     │ │
+                    │ │   4. onUpdate(matrix)     │ │
                     │ │ }                         │ │
                     │ └───────────────────────────┘ │
                     └──────────────┬────────────────┘
                                    │
                     ┌──────────────▼────────────────┐
                     │      🌐 3D RENDERER           │
-                    │  (Three.js / A-Frame / Raw)   │
+                    │   (DOM Overlay / Three.js)    │
                     └───────────────────────────────┘
 ```
 
 ---
 
-## 📦 Pipeline de Compilación (Compiler)
+## 📦 Pipeline de Compilación JIT (Runtime)
+
+### Nuevo Paradigma: Just-In-Time Compilation
+
+En la versión V11, hemos eliminado la necesidad estricta del compilador offline. El motor `track.ts` ahora integra una versión ligera del compilador que funciona en tiempo real en el cliente.
+
+1.  **Detección de Fuente**: El sistema analiza si `targetSrc` es una URL de imagen (jpg/png), una URL de archivo binario (`.taar`), o un buffer crudo.
+2.  **Compilación On-The-Fly**: Si es una imagen, se lanza un proceso asíncrono que genera los descriptores y el mesh de tracking en <1 segundo.
+3.  **Transparencia**: El usuario solo ve un estado de "Compiling..." brevísimo, eliminando la fricción de generar archivos `.taar` previos.
+
+---
+
+## 📦 Pipeline de Compilación (Legacy / Offline)
 
 ### Archivo Principal: `src/compiler/offline-compiler.ts`
 
-El compilador transforma una imagen target en un archivo `.taar` optimizado para tracking en tiempo real.
+El compilador transforma una imagen target en un archivo `.taar`. Aún es útil para dispositivos de gama muy baja donde se quiera ahorrar el segundo de compilacion inicial.
 
 ### Fase 1: Compilación Virtualizada (Nanite-style)
 
@@ -258,7 +275,7 @@ columnarize(points, tree, width, height) {
 // controller.ts: processVideo()
 const startProcessing = async () => {
   while (this.processingVideo) {
-    const inputData = this.inputLoader.loadInput(input); // 1. Captura
+    const inputData = this.inputLoader.loadInput(input); // 1. Captura (1280x960 HD)
     
     // 2. DETECCIÓN + MATCHING (si no hay tracking activo)
     if (nTracking < this.maxTrack) {

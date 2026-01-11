@@ -38,10 +38,11 @@
   - **Dynamic Scale Filtering (LOD)**: Runtime matching engine skips irrelevant octaves based on estimated scale.
   - **4-bit Packed Tracking Data**: Grayscale images are compressed to 4-bit depth, slashing file size.
   - **64-bit LSH Descriptors**: Optimized Locality Sensitive Hashing with XOR folding support.
-- 🧵 **High-Precision Tracking**: Now using **Float32** coordinate precision with sub-pixel resolution and stratified scale coverage.
+- 🧵 **HD Precision Tracking**: Default resolution upgraded to **1280x960 (HD)** for superior sharpness on modern displays.
+- ⚡ **Zero-Config JIT Compilation**: No need for offline tools. Just pass an image URL and the engine compiles it on the fly.
 - 📏 **Virtualized Scale Range**: Stable tracking from **20% (distant targets)** to **1000% (close-up)** using a single high-res keyframe.
 - ⚡ **Immediate AR Detection**: Optimized "warm-up" period (15 frames) with relaxed inlier thresholds (6 pts) for instant tracking lock.
-- 📦 **Framework Agnostic**: Includes wrappers for **A-Frame**, **Three.js**, and a raw **Controller** for custom engines.
+- 📦 **Framework Agnostic**: Includes wrappers for **React**, **A-Frame**, **Three.js**, and a raw **Controller**.
 - 📉 **Ultra-Compact Files**: Output `.taar` files are now **~100KB** (vs ~380KB+ previously).
 
 ---
@@ -80,182 +81,83 @@ The latest version has been rigorously tested with an adaptive stress test (`rob
 
 ---
 
-## 🖼️ Compiler Usage (Node.js & Web)
+## 🖼️ Compiler Usage (Automatic / JIT)
 
-The compiler is optimized to run in workers for maximum performance.
+The new **TapTapp AR** engine handles compilation automatically in the browser (Just-In-Time). You likely **don't need** to use the offline compiler manually anymore.
+
+Simply pass your image URL to the tracker, and it will compile it on the fly:
+
+```typescript
+// No compilation step needed!
+const tracker = await startTracking({
+  targetSrc: './my-image.jpg' // Using a JPG/PNG directly
+});
+```
+
+However, if you still want to pre-compile for faster startup on low-end devices:
 
 ```javascript
 import { OfflineCompiler } from '@srsergio/taptapp-ar';
-
-const compiler = new OfflineCompiler();
-
-// Compile target image (provide grayscale pixel data)
-// Input: { width, height, data: Uint8Array }
-await compiler.compileImageTargets(
-  [{ width, height, data: grayscaleUint8Array }], 
-  (progress) => console.log(`Compiling: ${progress}%`)
-);
-
-// Export to high-efficiency binary format (Protocol V7)
-const binaryBuffer = compiler.exportData(); 
+// ... same compiler code as before ...
 ```
 
 ---
 
 ## 🎥 Runtime Usage (AR Tracking)
 
-### 1. Simple A-Frame Integration
-The easiest way to use TapTapp AR in a web app:
+### 1. The Easy Way: React Component ⚛️
 
-```html
-<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-<script src="path/to/@srsergio/taptapp-ar/dist/index.js"></script>
+The simplest, zero-config way to add AR to your app:
 
-<a-scene taar-image="imageTargetSrc: ./targets.taar;">
-  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
-  <a-entity taar-image-target="targetIndex: 0">
-    <a-plane position="0 0 0" height="0.552" width="1"></a-plane>
-  </a-entity>
-</a-scene>
+```tsx
+import { TaptappAR } from '@srsergio/taptapp-ar/react';
+
+export const MyARScene = () => (
+  <TaptappAR 
+    config={{
+      targetImageSrc: "https://example.com/target.jpg", // Direct Image URL
+      videoSrc: "https://example.com/overlay.mp4",     // Content to show
+      scale: 1.2
+    }} 
+  />
+);
 ```
 
-### 2. High-Performance Three.js Wrapper
-For custom Three.js applications:
+### 2. The Powerful Way: `startTracking` API
 
+For vanilla JS or custom integrations, use the new high-level API:
+
+```typescript
+import { startTracking } from '@srsergio/taptapp-ar';
+
+const tracker = await startTracking({
+    targetSrc: './assets/target.jpg', // No .taar needed!
+    container: document.getElementById('ar-container'),
+    overlay: document.getElementById('overlay-element'),
+    
+    // Optional callbacks
+    callbacks: {
+        onFound: () => console.log("Target Found! 🎯"),
+        onLost: () => console.log("Target Lost 👋"),
+        onUpdate: (data) => {
+             console.log("Stability:", data.avgStability);
+        }
+    }
+});
+
+// Stop later
+// tracker.stop();
+```
+
+### 3. Advanced Integration (Three.js / A-Frame)
+
+We still provide wrappers for 3D engines if you need to render complex 3D models instead of DOM overlays.
+
+#### Three.js Adapter
 ```javascript
 import { TaarThree } from '@srsergio/taptapp-ar';
-
-const taarThree = new TaarThree({
-  container: document.querySelector("#container"),
-  imageTargetSrc: './targets.taar',
-});
-
-const {renderer, scene, camera} = taarThree;
-
-const anchor = taarThree.addAnchor(0);
-// Add your 3D models to anchor.group
-
-await taarThree.start();
-renderer.setAnimationLoop(() => {
-  renderer.render(scene, camera);
-});
+// ... (standard Three.js integration)
 ```
-
-### 3. Raw Controller (Advanced & Custom Engines)
-The `Controller` is the core engine of TapTapp AR. You can use it to build your own AR components or integrate tracking into custom 3D engines.
-
-#### ⚙️ Controller Configuration
-| Property | Default | Description |
-| :--- | :--- | :--- |
-| `inputWidth` | **Required** | The width of the video or image source. |
-| `inputHeight` | **Required** | The height of the video or image source. |
-| `maxTrack` | `1` | Max number of images to track simultaneously. |
-| `warmupTolerance` | `5` | Frames of consistent detection needed to "lock" a target. |
-| `missTolerance` | `5` | Frames of missed detection before considering the target "lost". |
-| `filterMinCF` | `0.001` | Min cutoff frequency for the OneEuroFilter (reduces jitter). |
-| `filterBeta` | `1000` | Filter beta parameter (higher = more responsive, lower = smoother). |
-| `onUpdate` | `null` | Callback for tracking events (Found, Lost, ProcessDone). |
-| `debugMode` | `false` | If true, returns extra debug data (cropped images, feature points). |
-| `worker` | `null` | Pass a custom worker instance if using a specialized environment. |
-
-#### 🚀 Example: Tracking a Video Stream
-Ideal for real-time AR apps in the browser:
-
-```javascript
-import { Controller } from '@srsergio/taptapp-ar';
-
-const controller = new Controller({
-  inputWidth: video.videoWidth,
-  inputHeight: video.videoHeight,
-  onUpdate: (data) => {
-    if (data.type === 'updateMatrix') {
-      const { targetIndex, worldMatrix } = data;
-      if (worldMatrix) {
-        console.log(`Target ${targetIndex} detected! Matrix:`, worldMatrix);
-        // Apply worldMatrix (Float32Array[16]) to your 3D object
-      } else {
-        console.log(`Target ${targetIndex} lost.`);
-      }
-    }
-  }
-});
-
-// Single target
-await controller.addImageTargets('./targets.taar');
-
-// OR multiple targets from different .taar files
-await controller.addImageTargets(['./target1.taar', './target2.taar', './target3.taar']);
-controller.processVideo(videoElement); // Starts the internal RAF loop
-```
-
-#### 📸 Example: One-shot Image Matching
-Use this for "Snap and Detect" features without a continuous video loop:
-
-```javascript
-const controller = new Controller({ inputWidth: 1024, inputHeight: 1024 });
-await controller.addImageTargets('./targets.taar');
-
-// 1. Detect features in a static image
-const { featurePoints } = await controller.detect(canvasElement);
-
-// 2. Attempt to match against a specific target index
-const { targetIndex, modelViewTransform } = await controller.match(featurePoints, 0);
-
-if (targetIndex !== -1) {
-  // Found a match! Use modelViewTransform for initial pose estimation
-}
-```
-
-### 4. Vanilla JS (No Framework) 🍦
-The **simplest way** to use AR—no Three.js, no A-Frame. Just overlay an image on the tracked target.
-
-```javascript
-import { SimpleAR } from '@srsergio/taptapp-ar';
-
-const ar = new SimpleAR({
-  container: document.getElementById('ar-container'),
-  targetSrc: './my-target.taar',  // Single URL or array: ['./a.taar', './b.taar']
-  overlay: document.getElementById('my-overlay'),
-  onFound: ({ targetIndex }) => console.log(`Target ${targetIndex} detected! 🎯`),
-  onLost: ({ targetIndex }) => console.log(`Target ${targetIndex} lost 👋`)
-});
-
-await ar.start();
-
-// When done:
-ar.stop();
-```
-
-#### 📁 Minimal HTML
-```html
-<div id="ar-container" style="width: 100vw; height: 100vh;">
-  <img id="my-overlay" src="./overlay.png" 
-       style="opacity: 0; z-index: 1; width: 200px; transition: opacity 0.3s;" />
-</div>
-
-<script type="module">
-  import { SimpleAR } from '@srsergio/taptapp-ar';
-  
-  const ar = new SimpleAR({
-    container: document.getElementById('ar-container'),
-    targetSrc: './targets.taar',
-    overlay: document.getElementById('my-overlay'),
-  });
-  
-  ar.start();
-</script>
-```
-
-#### ⚙️ SimpleAR Options
-| Option | Required | Description |
-| :--- | :--- | :--- |
-| `container` | ✅ | DOM element where video + overlay render |
-| `targetSrc` | ✅ | URL to your `.taar` file |
-| `overlay` | ✅ | DOM element to position on the target |
-| `onFound` | ❌ | Callback when target is detected |
-| `onLost` | ❌ | Callback when target is lost |
-| `onUpdate` | ❌ | Called each frame with `{ targetIndex, worldMatrix }` |
-| `cameraConfig` | ❌ | Camera constraints (default: `{ facingMode: 'environment', width: 1280, height: 720 }`) |
 
 ---
 
