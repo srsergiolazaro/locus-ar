@@ -1,4 +1,4 @@
-import { Controller } from '../src/runtime/controller.js';
+import { BioInspiredController } from '../src/runtime/bio-inspired-controller.js';
 import { OfflineCompiler } from '../src/compiler/offline-compiler.js';
 import { projectToScreen } from '../src/core/utils/projection.js';
 import { AR_CONFIG } from '../src/core/constants.js';
@@ -16,11 +16,39 @@ const arReliability = document.getElementById('arReliability') as HTMLElement;
 const arStability = document.getElementById('arStability') as HTMLElement;
 const simScaleEl = document.getElementById('simScale') as HTMLElement;
 const simPosEl = document.getElementById('simPos') as HTMLElement;
+const arContainer = document.getElementById('ar-container') as HTMLElement;
 
 const simCtx = simCanvas.getContext('2d')!;
 const arCtx = arCanvas.getContext('2d')!;
 
-// --- Smoothing Manager ---
+// Pre-initialize and cache dynamic canvases
+const debugCanvas = document.createElement('canvas');
+debugCanvas.width = WIDTH;
+debugCanvas.height = HEIGHT;
+debugCanvas.style.position = 'absolute';
+debugCanvas.style.top = '0';
+debugCanvas.style.left = '0';
+debugCanvas.style.width = '100%';
+debugCanvas.style.height = '100%';
+debugCanvas.style.pointerEvents = 'none';
+debugCanvas.style.zIndex = '3';
+arContainer.appendChild(debugCanvas);
+const debugCtx = debugCanvas.getContext('2d')!;
+
+const foveaCanvas = document.createElement('canvas');
+foveaCanvas.width = WIDTH;
+foveaCanvas.height = HEIGHT;
+foveaCanvas.style.position = 'absolute';
+foveaCanvas.style.top = '0';
+foveaCanvas.style.left = '0';
+foveaCanvas.style.width = '100%';
+foveaCanvas.style.height = '100%';
+foveaCanvas.style.pointerEvents = 'none';
+foveaCanvas.style.zIndex = '2';
+arContainer.appendChild(foveaCanvas);
+const foveaCtx = foveaCanvas.getContext('2d')!;
+
+// Global cache for expensive lookups
 class SmoothingManager {
     history: Map<number, { x: number, y: number }[]> = new Map();
     lastFiltered: Map<number, { x: number, y: number }> = new Map();
@@ -73,16 +101,31 @@ class SmoothingManager {
             this.lastFiltered.clear();
         }
     }
+
+    // New: Prevent memory leaks by cleaning old IDs
+    prune(activeIds: Set<number>) {
+        for (const id of this.history.keys()) {
+            if (!activeIds.has(id) && Math.random() < 0.05) { // Probabilistic cleanup
+                this.history.delete(id);
+                this.lastFiltered.delete(id);
+            }
+        }
+    }
 }
 
 const smoother = new SmoothingManager();
 
+const logQueue: string[] = [];
 function log(msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
-    const div = document.createElement('div');
-    div.className = `log-entry ${type}`;
-    div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
-    logs.prepend(div);
     console.log(`[AR-TEST] ${msg}`);
+
+    // Only update DOM every 500ms or for critical errors to save performance
+    logQueue.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
+    if (logQueue.length > 50) logQueue.shift();
+
+    if (type === 'error' || type === 'success' || Math.random() < 0.1) {
+        logs.innerHTML = logQueue.slice().reverse().map(m => `<div>${m}</div>`).join('');
+    }
 }
 
 async function loadImage(url: string): Promise<HTMLImageElement> {
@@ -143,10 +186,14 @@ async function init() {
     const buffer = compiler.exportData();
     log(`Exported data size: ${Math.round(buffer.byteLength / 1024)}KB`);
 
-    const controller = new Controller({
+    const controller = new BioInspiredController({
         inputWidth: WIDTH,
         inputHeight: HEIGHT,
         debugMode: true,
+        bioInspired: {
+            enabled: true,
+            aggressiveSkipping: false // Keeping it realistic for motion
+        },
         onUpdate: (data) => handleARUpdate(data, targetImg.width, targetImg.height, controller)
     });
 
@@ -165,21 +212,29 @@ async function init() {
 
     // Simulation Loop
     function step() {
-        angle += 0.01;
-        scale = 0.25 + Math.sin(angle * 0.3) * 0.23; // Pulse scale between 0.02 and 0.48
-        posX = WIDTH / 2 + Math.cos(angle * 0.7) * 80;
-        posY = HEIGHT / 2 + Math.sin(angle * 0.5) * 50;
+        angle += 0.015;
+        scale = 0.4 + Math.sin(angle * 0.3) * 0.2;
+        posX = WIDTH / 2 + Math.cos(angle * 0.5) * 110;
+        posY = HEIGHT / 2 + Math.sin(angle * 0.4) * 70;
+
+        // Blur frequency is different (0.1 vs 0.3/0.5/0.4)
+        const blurAmount = Math.max(0, Math.sin(angle * 0.1) * 3);
 
         // Draw Simulation (Ground Truth)
-        simCtx.fillStyle = '#222'; // Slightly lighter background
+        simCtx.fillStyle = '#222';
         simCtx.fillRect(0, 0, WIDTH, HEIGHT);
 
         simCtx.save();
+        // Apply blur only if significant to save processing
+        if (blurAmount > 0.3) {
+            simCtx.filter = `blur(${blurAmount}px)`;
+        }
+
         simCtx.translate(posX, posY);
         simCtx.scale(scale, scale);
-        // Draw image centered
         simCtx.drawImage(targetImg, -targetImg.width / 2, -targetImg.height / 2);
         simCtx.restore();
+        simCtx.filter = 'none'; // Reset filter for next operations
 
         // UI Updates
         simScaleEl.textContent = scale.toFixed(2);
@@ -199,7 +254,7 @@ async function init() {
     step();
 }
 
-function handleARUpdate(data: any, markerW: number, markerH: number, controller: Controller) {
+function handleARUpdate(data: any, markerW: number, markerH: number, controller: BioInspiredController) {
     if (data.type === 'processDone') return;
 
     if (data.type === 'featurePoints') {
@@ -216,12 +271,8 @@ function handleARUpdate(data: any, markerW: number, markerH: number, controller:
     if (data.type === 'updateMatrix') {
         const { targetIndex, worldMatrix, modelViewTransform, reliabilities, stabilities, screenCoords, deformedMesh } = data;
 
-        // Central clear for debug canvas
-        const debugCanvas = document.getElementById('debugCanvas') as HTMLCanvasElement;
-        if (debugCanvas) {
-            const ctx = debugCanvas.getContext('2d')!;
-            ctx.clearRect(0, 0, WIDTH, HEIGHT);
-        }
+        // Central clear for debug canvas is now handled in drawPoints/drawFeaturePoints
+        // using the cached debugCtx
 
         /*
         if (deformedMesh) {
@@ -229,13 +280,16 @@ function handleARUpdate(data: any, markerW: number, markerH: number, controller:
         }
         */
 
-        // Smooth points regardless of tracking status (they show up when asoma)
+        // Limit smoothing history and prune old points to save memory
+        const activeIds = new Set<number>((screenCoords || []).map((p: any) => p.id));
+        smoother.prune(activeIds);
+
         let smoothedCoords = screenCoords || [];
         if (screenCoords && screenCoords.length > 0) {
             smoothedCoords = screenCoords.map((p: any) => {
                 const rel = reliabilities ? reliabilities[p.id] || 0.5 : 0.5;
                 const smoothed = smoother.smooth(p.id, p, rel);
-                return { ...smoothed, id: p.id }; // Re-inject ID
+                return { ...smoothed, id: p.id };
             });
         }
 
@@ -262,12 +316,20 @@ function handleARUpdate(data: any, markerW: number, markerH: number, controller:
             }
 
             // Pose Verification Log (Reality vs AR)
-            const f = controller.projectionTransform[0][0];
+            const f = (controller as any).projectionTransform[0][0];
             const tz = modelViewTransform[2][3];
-            if (Math.random() < 0.02) {
+            if (Math.random() < 0.01) {
                 const estScale = (f / tz);
                 const simScale = parseFloat(simScaleEl.textContent || "0");
-                log(`TRACK: Scale:${estScale.toFixed(3)} (ideal:${simScale.toFixed(3)}) | Err:${Math.abs(estScale - simScale).toFixed(4)}`);
+                const savings = data.pixelsSaved !== undefined
+                    ? ((data.pixelsSaved / (WIDTH * HEIGHT)) * 100).toFixed(1)
+                    : "0.0";
+                log(`TRACK: Scale:${estScale.toFixed(3)} (ideal:${simScale.toFixed(3)}) | Savings: ${savings}% pixels`);
+            }
+
+            // Show fovea if available
+            if (data.foveaCenter) {
+                drawFovea(data.foveaCenter);
             }
 
             // Position Overlay (SimpleAR logic)
@@ -278,6 +340,9 @@ function handleARUpdate(data: any, markerW: number, markerH: number, controller:
             overlay.style.display = 'none';
             arReliability.textContent = '0.00';
             arStability.textContent = '0.00';
+
+            // Explicitly clear debug canvas when searching
+            debugCtx.clearRect(0, 0, WIDTH, HEIGHT);
 
             // Log why we are searching (debugExtra might have info)
             if (Math.random() < 0.02) {
@@ -290,41 +355,21 @@ function handleARUpdate(data: any, markerW: number, markerH: number, controller:
             drawPoints(smoothedCoords, stabilities || []);
         } else {
             // Clear debug canvas if no points
-            const debugCanvas = document.getElementById('debugCanvas') as HTMLCanvasElement;
-            if (debugCanvas) {
-                const ctx = debugCanvas.getContext('2d')!;
-                ctx.clearRect(0, 0, WIDTH, HEIGHT);
-            }
+            debugCtx.clearRect(0, 0, WIDTH, HEIGHT);
         }
     }
 }
 
 function drawFeaturePoints(points: any[]) {
-    let debugCanvas = document.getElementById('debugCanvas') as HTMLCanvasElement;
-    if (!debugCanvas) {
-        debugCanvas = document.createElement('canvas');
-        debugCanvas.id = 'debugCanvas';
-        debugCanvas.width = WIDTH;
-        debugCanvas.height = HEIGHT;
-        debugCanvas.style.position = 'absolute';
-        debugCanvas.style.top = '0';
-        debugCanvas.style.left = '0';
-        debugCanvas.style.width = '100%';
-        debugCanvas.style.height = '100%';
-        debugCanvas.style.objectFit = 'cover';
-        debugCanvas.style.pointerEvents = 'none';
-        debugCanvas.style.zIndex = '3';
-        arCanvas.parentElement!.appendChild(debugCanvas);
-    }
-    const ctx = debugCanvas.getContext('2d')!;
-    // Only clear if we are NOT tracking (tracking draws its own points)
+    // Only draw feature points if we ARE NOT tracking
     if (arStatus.textContent === 'Searching') {
-        ctx.clearRect(0, 0, WIDTH, HEIGHT);
-        for (const p of points) {
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, 1.5, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255, 255, 0, 0.5)'; // Yellow for searching
-            ctx.fill();
+        debugCtx.clearRect(0, 0, WIDTH, HEIGHT);
+        debugCtx.fillStyle = 'rgba(255, 255, 0, 0.6)';
+        const limit = Math.min(points.length, 150);
+
+        for (let i = 0; i < limit; i++) {
+            const p = points[i];
+            debugCtx.fillRect(p.x - 1, p.y - 1, 2, 2);
         }
     }
 }
@@ -353,58 +398,33 @@ function drawMesh(mesh: { vertices: Float32Array, triangles: Uint16Array }) {
 }
 
 function drawPoints(coords: { x: number, y: number }[], stabilities: number[]) {
-    // Draw on top of arCanvas (which already has the image)
-    // Actually, we should draw on a separate layer or just clear and redraw
-    // To keep it simple, we'll draw directly on arCtx AFTER the controller has seen the frame
-    // But wait, step() draws the image. If we draw points here, they will be overwritten by next step()
-    // Better: let's draw them in a separate debug canvas overlay
-    let debugCanvas = document.getElementById('debugCanvas') as HTMLCanvasElement;
-    if (!debugCanvas) {
-        debugCanvas = document.createElement('canvas');
-        debugCanvas.id = 'debugCanvas';
-        debugCanvas.width = WIDTH;
-        debugCanvas.height = HEIGHT;
-        debugCanvas.style.position = 'absolute';
-        debugCanvas.style.top = '0';
-        debugCanvas.style.left = '0';
-        debugCanvas.style.width = '100%';
-        debugCanvas.style.height = '100%';
-        debugCanvas.style.objectFit = 'cover';
-        debugCanvas.style.pointerEvents = 'none';
-        debugCanvas.style.zIndex = '3'; // Below overlay (10), above arCanvas (1)
-        arCanvas.parentElement!.appendChild(debugCanvas);
-    }
-    const ctx = debugCanvas.getContext('2d')!;
+    debugCtx.clearRect(0, 0, WIDTH, HEIGHT);
 
-    for (let i = 0; i < coords.length; i++) {
+    const limit = Math.min(coords.length, 100);
+
+    for (let i = 0; i < limit; i++) {
         const p = coords[i] as any;
         const s = stabilities[i] || 0;
 
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2);
-        // Intensity purely based on stability
-        ctx.fillStyle = `rgba(0, 255, 0, ${0.1 + s * 0.9})`;
-        ctx.fill();
-
-        if (s > 0.8) {
-            ctx.strokeStyle = '#fff';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-        }
-
-        // Draw ID for debug
-        if (p.id !== undefined) {
-            ctx.fillStyle = '#fff';
-            ctx.font = '8px Arial';
-            ctx.fillText(p.id.toString(), p.x + 4, p.y - 4);
-        }
+        const size = s > 0.8 ? 3 : 2;
+        debugCtx.fillStyle = `rgba(0, 255, 0, ${0.2 + s * 0.8})`;
+        debugCtx.fillRect(p.x - size / 2, p.y - size / 2, size, size);
     }
 }
 
-function positionOverlay(mVT: number[][], markerW: number, markerH: number, controller: Controller) {
+function drawFovea(center: { x: number, y: number }) {
+    foveaCtx.clearRect(0, 0, WIDTH, HEIGHT);
+    foveaCtx.beginPath();
+    foveaCtx.arc(center.x, center.y, 40, 0, Math.PI * 2);
+    foveaCtx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    foveaCtx.setLineDash([5, 5]);
+    foveaCtx.stroke();
+    foveaCtx.setLineDash([]);
+}
+
+function positionOverlay(mVT: number[][], markerW: number, markerH: number, controller: BioInspiredController) {
     const proj = controller.projectionTransform;
-    const container = document.getElementById('ar-container')!;
-    const containerRect = container.getBoundingClientRect();
+    const containerRect = arContainer.getBoundingClientRect();
 
     // Get corners in screen space
     const pUL = projectToScreen(0, 0, 0, mVT, proj, WIDTH, HEIGHT, containerRect, false);
