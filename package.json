@@ -1,6 +1,6 @@
 {
     "name": "@srsergio/taptapp-ar",
-    "version": "1.0.93",
+    "version": "1.0.94",
     "description": "Ultra-fast Augmented Reality (AR) SDK for Node.js and Browser. Image tracking with 100% pure JavaScript, zero-dependencies, and high-performance compilation.",
     "keywords": [
         "augmented reality",
