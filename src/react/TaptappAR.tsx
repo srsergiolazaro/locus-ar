@@ -15,7 +15,7 @@ export const TaptappAR: React.FC<TaptappARProps> = ({
     showScanningOverlay = true,
     showErrorOverlay = true
 }) => {
-    const { containerRef, overlayRef, status, toggleVideo, trackedPoints } = useAR(config);
+    const { containerRef, overlayRef, status, toggleVideo, trackedPoints, error } = useAR(config);
 
     // Simple heuristic to determine if it's a video or image
     // based on the presence of videoSrc and common extensions
@@ -46,13 +46,24 @@ export const TaptappAR: React.FC<TaptappARProps> = ({
                 </div>
             )}
 
+            {/* Compiling Overlay (for JIT image processing) */}
+            {status === "compiling" && (
+                <div className="taptapp-ar-overlay taptapp-ar-compiling" style={{ background: 'rgba(0,0,0,0.9)' }}>
+                    <div className="scanning-content">
+                        <div className="loading-spinner"></div>
+                        <p className="scanning-text" style={{ marginTop: '20px' }}>Preparando motor AR...</p>
+                        <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>Compilando imagen de referencia</p>
+                    </div>
+                </div>
+            )}
+
             {/* Error Overlay */}
             {showErrorOverlay && status === "error" && (
                 <div className="taptapp-ar-overlay taptapp-ar-error">
                     <div className="error-content">
                         <span className="error-icon">⚠️</span>
                         <p className="error-title">No se pudo iniciar AR</p>
-                        <p className="error-text">Verifica los permisos de cámara</p>
+                        <p className="error-text">{error || "Verifica los permisos de cámara"}</p>
                         <button className="retry-btn" onClick={() => window.location.reload()}>
                             Reintentar
                         </button>
@@ -180,6 +191,17 @@ export const TaptappAR: React.FC<TaptappARProps> = ({
                     font-weight: 500;
                     letter-spacing: 0.5px;
                 }
+                .loading-spinner {
+                    width: 40px;
+                    height: 40px;
+                    border: 3px solid rgba(255,255,255,0.1);
+                    border-radius: 50%;
+                    border-top-color: #00e5ff;
+                    animation: spin 1s ease-in-out infinite;
+                }
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
                 .error-icon { font-size: 3rem; margin-bottom: 10px; }
                 .error-title { font-size: 1.2rem; font-weight: bold; margin: 0; }
                 .error-text { opacity: 0.8; margin: 5px 0 20px; }
@@ -195,12 +217,15 @@ export const TaptappAR: React.FC<TaptappARProps> = ({
                 }
                 .retry-btn:active { transform: scale(0.95); }
                 .taptapp-ar-overlay-element {
-                    display: block;
-                    width: 100%;
+                    display: none; /* Controlled by tracker */
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: auto;
                     height: auto;
-                    opacity: 0;
                     pointer-events: none;
-                    transition: opacity 0.3s ease;
+                    z-index: 10;
+                    /* Will be positioned via matrix3d by track.ts */
                 }
                 .taptapp-ar-points-overlay {
                     position: absolute;

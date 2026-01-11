@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ARConfig } from "./types.js";
-import type { SimpleAR as SimpleARType } from "../runtime/simple-ar.js";
+import type { Tracker } from "../runtime/track.js";
 
-export type ARStatus = "scanning" | "tracking" | "error";
+export type ARStatus = "compiling" | "scanning" | "tracking" | "error";
 
 export interface TrackedPoint {
     x: number;
@@ -18,6 +18,7 @@ export interface UseARReturn {
     isPlaying: boolean;
     toggleVideo: () => Promise<void>;
     trackedPoints: TrackedPoint[];
+    error: string | null;
 }
 
 export const useAR = (config: ARConfig): UseARReturn => {
@@ -26,7 +27,8 @@ export const useAR = (config: ARConfig): UseARReturn => {
     const [status, setStatus] = useState<ARStatus>("scanning");
     const [isPlaying, setIsPlaying] = useState(false);
     const [trackedPoints, setTrackedPoints] = useState<TrackedPoint[]>([]);
-    const arInstanceRef = useRef<SimpleARType | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const arInstanceRef = useRef<Tracker | null>(null);
 
     const toggleVideo = useCallback(async () => {
         const overlay = overlayRef.current;
@@ -53,63 +55,70 @@ export const useAR = (config: ARConfig): UseARReturn => {
         const initAR = async () => {
             try {
                 // Safe hybrid import for SSR + Speed
-                const { SimpleAR } = await import("../runtime/simple-ar.js");
+                const { createTracker } = await import("../runtime/track.js");
                 if (!isMounted) return;
 
-                const instance = new SimpleAR({
+                setStatus("compiling");
+
+                const instance = await createTracker({
                     container: containerRef.current!,
-                    targetSrc: config.targetTaarSrc,
+                    targetSrc: config.targetTaarSrc || config.targetImageSrc,
                     overlay: overlayRef.current!,
                     scale: config.scale,
-                    debug: false,
-                    onUpdate: (data: any) => {
-                        const { screenCoords, reliabilities, stabilities } = data;
-                        if (screenCoords && reliabilities && stabilities) {
-                            const points = screenCoords.map((p: any, i: number) => ({
-                                x: p.x,
-                                y: p.y,
-                                reliability: reliabilities[i],
-                                stability: stabilities[i]
-                            }));
-                            setTrackedPoints(points);
-                        }
-                    },
-                    onFound: async ({ targetIndex }) => {
-                        console.log(`🎯 Target ${targetIndex} detected!`);
-                        if (!isMounted) return;
-                        setStatus("tracking");
-
-                        const overlay = overlayRef.current;
-                        if (overlay instanceof HTMLVideoElement) {
-                            try {
-                                await overlay.play();
-                                setIsPlaying(true);
-                            } catch (err) {
-                                console.warn("Auto-play blocked:", err);
+                    debugMode: false,
+                    callbacks: {
+                        onUpdate: (data) => {
+                            const { screenCoords, reliabilities, stabilities } = data;
+                            if (screenCoords && reliabilities && stabilities) {
+                                const points = screenCoords.map((p, i) => ({
+                                    x: p.x,
+                                    y: p.y,
+                                    reliability: reliabilities[i],
+                                    stability: stabilities[i]
+                                }));
+                                setTrackedPoints(points);
                             }
-                        }
-                    },
-                    onLost: ({ targetIndex }) => {
-                        console.log(`👋 Target ${targetIndex} lost`);
-                        if (!isMounted) return;
-                        setStatus("scanning");
-                        setTrackedPoints([]);
+                        },
+                        onFound: async ({ targetIndex }) => {
+                            console.log(`🎯 Target ${targetIndex} detected!`);
+                            if (!isMounted) return;
+                            setStatus("tracking");
 
-                        const overlay = overlayRef.current;
-                        if (overlay instanceof HTMLVideoElement) {
-                            overlay.pause();
-                            setIsPlaying(false);
+                            const overlay = overlayRef.current;
+                            if (overlay instanceof HTMLVideoElement) {
+                                try {
+                                    await overlay.play();
+                                    setIsPlaying(true);
+                                } catch (err) {
+                                    console.warn("Auto-play blocked:", err);
+                                }
+                            }
+                        },
+                        onLost: ({ targetIndex }) => {
+                            console.log(`👋 Target ${targetIndex} lost`);
+                            if (!isMounted) return;
+                            setStatus("scanning");
+                            setTrackedPoints([]);
+
+                            const overlay = overlayRef.current;
+                            if (overlay instanceof HTMLVideoElement) {
+                                overlay.pause();
+                                setIsPlaying(false);
+                            }
                         }
                     }
                 });
 
                 arInstanceRef.current = instance;
-                await instance.start();
+                await instance.startCamera();
 
                 if (isMounted) setStatus("scanning");
-            } catch (err) {
-                console.error("Failed to initialize AR:", err);
-                if (isMounted) setStatus("error");
+            } catch (err: any) {
+                console.error("❌ [TapTapp AR] Error durante la inicialización:", err);
+                if (isMounted) {
+                    setError(err.message || String(err));
+                    setStatus("error");
+                }
             }
         };
 
@@ -120,7 +129,7 @@ export const useAR = (config: ARConfig): UseARReturn => {
             arInstanceRef.current?.stop();
             arInstanceRef.current = null;
         };
-    }, [config.targetTaarSrc, config.scale]);
+    }, [config.targetTaarSrc, config.targetImageSrc, config.scale]);
 
     return {
         containerRef,
@@ -128,6 +137,7 @@ export const useAR = (config: ARConfig): UseARReturn => {
         status,
         isPlaying,
         toggleVideo,
-        trackedPoints
+        trackedPoints,
+        error
     };
 };

@@ -1,7 +1,7 @@
 export interface ARConfig {
   cardId: string;
   targetImageSrc: string;
-  targetTaarSrc: string;
+  targetTaarSrc?: string;
   videoSrc: string;
   videoWidth: number;
   videoHeight: number;
