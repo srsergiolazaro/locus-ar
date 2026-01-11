@@ -29,7 +29,7 @@ export const AR_CONFIG = {
 
     // Image processing / Scale list
     MIN_IMAGE_PIXEL_SIZE: 32,
-    SCALE_STEP_EXPONENT: 0.6,
+    SCALE_STEP_EXPONENT: 1.0,  // Optimized: was 0.6, now 1.0 (reduces scales from ~7 to ~4)
     TRACKING_DOWNSCALE_LEVEL_1: 256.0,
     TRACKING_DOWNSCALE_LEVEL_2: 128.0,
 
@@ -38,4 +38,8 @@ export const AR_CONFIG = {
     MISS_TOLERANCE: 1,
     ONE_EURO_FILTER_CUTOFF: 0.5,
     ONE_EURO_FILTER_BETA: 0.1,
+
+    // TAAR Size Optimization
+    USE_COMPACT_DESCRIPTORS: true,  // 32-bit XOR folded descriptors vs 64-bit raw
+    COMPACT_HAMMING_THRESHOLD: 8,   // Threshold for 32-bit descriptors (vs 15 for 64-bit)
 };

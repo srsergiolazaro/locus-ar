@@ -204,14 +204,19 @@ export class OfflineCompiler {
                         }
                     };
                 }),
-                matchingData: item.matchingData.map((kf: any) => ({
-                    w: kf.width,
-                    h: kf.height,
-                    s: kf.scale,
-                    hdc: false,
-                    max: protocol.columnarize(kf.maximaPoints, kf.maximaPointsCluster, kf.width, kf.height, false),
-                    min: protocol.columnarize(kf.minimaPoints, kf.minimaPointsCluster, kf.width, kf.height, false),
-                })),
+                matchingData: item.matchingData.map((kf: any) => {
+                    const useCompact = AR_CONFIG.USE_COMPACT_DESCRIPTORS;
+                    const columnarizeFn = useCompact ? protocol.columnarizeCompact : protocol.columnarize;
+                    return {
+                        w: kf.width,
+                        h: kf.height,
+                        s: kf.scale,
+                        hdc: false,
+                        max: columnarizeFn(kf.maximaPoints, kf.maximaPointsCluster, kf.width, kf.height),
+                        min: columnarizeFn(kf.minimaPoints, kf.minimaPointsCluster, kf.width, kf.height),
+                    };
+                }),
+
             };
         });
 

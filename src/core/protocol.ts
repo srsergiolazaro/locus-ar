@@ -1,6 +1,6 @@
 import * as msgpack from "@msgpack/msgpack";
 
-export const CURRENT_VERSION = 9; // Bumped for HDC support
+export const CURRENT_VERSION = 10; // Bumped for compact descriptors support
 export const HDC_SEED = 0x1337BEEF; // Default system seed
 
 /**
@@ -103,6 +103,43 @@ export function columnarize(points: any[], tree: any, width: number, height: num
         t: compactTree(tree.rootNode),
     };
 }
+
+/**
+ * Columnarizes point data with COMPACT 32-bit descriptors (XOR folding)
+ * Reduces descriptor storage by 50% with minimal accuracy loss
+ */
+export function columnarizeCompact(points: any[], tree: any, width: number, height: number) {
+    const count = points.length;
+    const x = new Uint16Array(count);
+    const y = new Uint16Array(count);
+    const angle = new Int16Array(count);
+    const scale = new Uint8Array(count);
+    const descriptors = new Uint32Array(count); // 32-bit compact descriptors
+
+    for (let i = 0; i < count; i++) {
+        x[i] = Math.round((points[i].x / width) * 65535);
+        y[i] = Math.round((points[i].y / height) * 65535);
+        angle[i] = Math.round((points[i].angle / Math.PI) * 32767);
+        scale[i] = Math.round(Math.log2(points[i].scale || 1));
+
+        if (points[i].descriptors && points[i].descriptors.length >= 2) {
+            // XOR folding: Combine two 32-bit values into one 32-bit value
+            // This preserves discriminative power while halving storage
+            descriptors[i] = (points[i].descriptors[0] ^ points[i].descriptors[1]) >>> 0;
+        }
+    }
+
+    return {
+        x,
+        y,
+        a: angle,
+        s: scale,
+        d: descriptors,
+        compact: 1, // Flag to indicate compact 32-bit descriptors
+        t: compactTree(tree.rootNode),
+    };
+}
+
 
 /**
  * Compacts hierarchical clustering tree into a minimal array structure

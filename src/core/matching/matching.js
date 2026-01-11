@@ -27,12 +27,16 @@ const match = ({ keyframe, querypoints: rawQuerypoints, querywidth, queryheight,
   const qlen = querypoints.length;
   const kmax = keyframe.max;
   const kmin = keyframe.min;
+
+  // Detect descriptor mode: HDC (32-bit signature), Compact (32-bit XOR folded), or Raw (64-bit)
   const isHDC = keyframe.hdc === true || (kmax && kmax.hdc === 1);
-  const descSize = isHDC ? 1 : 2;
+  const isCompact = (kmax && kmax.compact === 1) || (kmin && kmin.compact === 1);
+  const descSize = (isHDC || isCompact) ? 1 : 2;  // Compact uses 32-bit like HDC
 
   const currentRatioThreshold = isHDC ? HDC_RATIO_THRESHOLD : HAMMING_THRESHOLD;
 
   for (let j = 0; j < qlen; j++) {
+
     const querypoint = querypoints[j];
     const col = querypoint.maxima ? kmax : kmin;
     if (!col || col.x.length === 0) continue;
@@ -49,7 +53,8 @@ const match = ({ keyframe, querypoints: rawQuerypoints, querywidth, queryheight,
       keypointIndexes,
       numPop: 0,
       isHDC,
-      descSize
+      descSize,
+      isCompact
     });
 
     let bestIndex = -1;
@@ -59,12 +64,20 @@ const match = ({ keyframe, querypoints: rawQuerypoints, querywidth, queryheight,
     const qDesc = querypoint.descriptors;
     const cDesc = col.d;
 
+    // For compact mode: pre-compute XOR folded query descriptor (64-bit → 32-bit)
+    const qDescCompact = isCompact && qDesc && qDesc.length >= 2
+      ? (qDesc[0] ^ qDesc[1]) >>> 0
+      : 0;
+
     for (let k = 0; k < keypointIndexes.length; k++) {
       const idx = keypointIndexes[k];
 
       let d;
       if (isHDC) {
         d = popcount32(cDesc[idx] ^ querypoint.hdcSignature);
+      } else if (isCompact) {
+        // Compact mode: compare 32-bit XOR folded descriptors
+        d = popcount32(cDesc[idx] ^ qDescCompact);
       } else {
         d = hammingCompute({ v1: cDesc, v1Offset: idx * descSize, v2: qDesc });
       }
@@ -77,6 +90,7 @@ const match = ({ keyframe, querypoints: rawQuerypoints, querywidth, queryheight,
         bestD2 = d;
       }
     }
+
 
     if (bestIndex !== -1) {
       if (bestD2 === Number.MAX_SAFE_INTEGER || (bestD1 / bestD2) < currentRatioThreshold) {
@@ -175,6 +189,11 @@ const match = ({ keyframe, querypoints: rawQuerypoints, querywidth, queryheight,
     const cx = col.x, cy = col.y, cd = col.d;
     const qDesc = querypoint.descriptors;
 
+    // For compact mode: XOR fold query descriptor
+    const qDescCompact = isCompact && qDesc && qDesc.length >= 2
+      ? (qDesc[0] ^ qDesc[1]) >>> 0
+      : 0;
+
     for (let k = 0, clen = cx.length; k < clen; k++) {
       const dx = cx[k] - mapX;
       const dy = cy[k] - mapY;
@@ -185,6 +204,8 @@ const match = ({ keyframe, querypoints: rawQuerypoints, querywidth, queryheight,
       let d;
       if (isHDC) {
         d = popcount32(cd[k] ^ querypoint.hdcSignature);
+      } else if (isCompact) {
+        d = popcount32(cd[k] ^ qDescCompact);
       } else {
         d = hammingCompute({ v1: cd, v1Offset: k * descSize, v2: qDesc });
       }
@@ -197,6 +218,7 @@ const match = ({ keyframe, querypoints: rawQuerypoints, querywidth, queryheight,
         bestD2 = d;
       }
     }
+
 
     if (
       bestIndex !== -1 &&
@@ -254,7 +276,7 @@ const match = ({ keyframe, querypoints: rawQuerypoints, querywidth, queryheight,
   return { H: refinedH || H2, matches: inlierMatches2, debugExtra };
 };
 
-const _query = ({ node, descriptors, querypoint, queue, keypointIndexes, numPop, isHDC, descSize }) => {
+const _query = ({ node, descriptors, querypoint, queue, keypointIndexes, numPop, isHDC, descSize, isCompact }) => {
   const isLeaf = node[0] === 1;
   const childrenOrIndices = node[2];
 
@@ -266,6 +288,12 @@ const _query = ({ node, descriptors, querypoint, queue, keypointIndexes, numPop,
   }
 
   const qDesc = querypoint.descriptors;
+
+  // For compact mode: XOR fold query descriptor
+  const qDescCompact = isCompact && qDesc && qDesc.length >= 2
+    ? (qDesc[0] ^ qDesc[1]) >>> 0
+    : 0;
+
   let minD = Number.MAX_SAFE_INTEGER;
   const clen = childrenOrIndices.length;
   const distances = new Int32Array(clen);
@@ -277,6 +305,8 @@ const _query = ({ node, descriptors, querypoint, queue, keypointIndexes, numPop,
     let d;
     if (isHDC) {
       d = popcount32(descriptors[cIdx] ^ querypoint.hdcSignature);
+    } else if (isCompact) {
+      d = popcount32(descriptors[cIdx] ^ qDescCompact);
     } else {
       d = hammingCompute({
         v1: descriptors,
@@ -291,7 +321,7 @@ const _query = ({ node, descriptors, querypoint, queue, keypointIndexes, numPop,
   for (let i = 0; i < clen; i++) {
     const dist = distances[i];
     if (dist <= minD) {
-      _query({ node: childrenOrIndices[i], descriptors, querypoint, queue, keypointIndexes, numPop: numPop + 1, isHDC, descSize });
+      _query({ node: childrenOrIndices[i], descriptors, querypoint, queue, keypointIndexes, numPop: numPop + 1, isHDC, descSize, isCompact });
     } else {
       queue.push({ node: childrenOrIndices[i], d: dist });
     }
@@ -299,9 +329,10 @@ const _query = ({ node, descriptors, querypoint, queue, keypointIndexes, numPop,
 
   if (numPop < CLUSTER_MAX_POP && queue.length > 0) {
     const { node } = queue.pop();
-    _query({ node, descriptors, querypoint, queue, keypointIndexes, numPop: numPop + 1, isHDC, descSize });
+    _query({ node, descriptors, querypoint, queue, keypointIndexes, numPop: numPop + 1, isHDC, descSize, isCompact });
   }
 };
+
 
 const _findInlierMatches = (options) => {
   const { H, matches, threshold } = options;
