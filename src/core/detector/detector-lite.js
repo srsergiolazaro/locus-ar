@@ -66,9 +66,11 @@ export class DetectorLite {
     /**
      * Detecta características en una imagen en escala de grises
      * @param {Float32Array|Uint8Array} imageData - Datos de imagen (width * height)
+     * @param {Object} options - Opciones de detección (ej. octavesToProcess)
      * @returns {{featurePoints: Array}} Puntos de características detectados
      */
-    detect(imageData) {
+    detect(imageData, options = {}) {
+        const octavesToProcess = options.octavesToProcess || Array.from({ length: this.numOctaves }, (_, i) => i);
         // Normalizar a Float32Array si es necesario
         let data;
         if (imageData instanceof Float32Array) {
@@ -80,11 +82,11 @@ export class DetectorLite {
             }
         }
 
-        // 1. Construir pirámide gaussiana
-        const pyramidImages = this._buildGaussianPyramid(data, this.width, this.height);
+        // 1. Construir pirámide gaussiana (solo octavas solicitadas)
+        const pyramidImages = this._buildGaussianPyramid(data, this.width, this.height, octavesToProcess);
 
         // 2. Construir pirámide DoG (Difference of Gaussians)
-        const dogPyramid = this._buildDogPyramid(pyramidImages);
+        const dogPyramid = this._buildDogPyramid(pyramidImages, octavesToProcess);
 
         // 3. Encontrar extremos locales
         const extremas = this._findExtremas(dogPyramid, pyramidImages);
@@ -121,7 +123,7 @@ export class DetectorLite {
     /**
      * Construye una pirámide gaussiana
      */
-    _buildGaussianPyramid(data, width, height) {
+    _buildGaussianPyramid(data, width, height, octavesToProcess = null) {
         // Use GPU-accelerated pyramid if available
         if (this.useGPU) {
             try {
@@ -130,6 +132,10 @@ export class DetectorLite {
                 // Convert GPU pyramid format to expected format
                 const pyramid = [];
                 for (let i = 0; i < gpuPyramid.length && i < this.numOctaves; i++) {
+                    if (octavesToProcess && !octavesToProcess.includes(i)) {
+                        pyramid.push(null);
+                        continue;
+                    }
                     const level = gpuPyramid[i];
                     // Apply second blur for DoG computation
                     const img2 = this._applyGaussianFilter(level.data, level.width, level.height);
@@ -156,19 +162,37 @@ export class DetectorLite {
         let currentHeight = height;
 
         for (let i = 0; i < this.numOctaves; i++) {
-            const img1 = this._applyGaussianFilter(currentData, currentWidth, currentHeight);
-            const img2 = this._applyGaussianFilter(img1.data, currentWidth, currentHeight);
+            const shouldProcess = !octavesToProcess || octavesToProcess.includes(i);
 
-            pyramid.push([
-                { data: img1.data, width: currentWidth, height: currentHeight },
-                { data: img2.data, width: currentWidth, height: currentHeight }
-            ]);
+            if (shouldProcess) {
+                const img1 = this._applyGaussianFilter(currentData, currentWidth, currentHeight);
+                const img2 = this._applyGaussianFilter(img1.data, currentWidth, currentHeight);
+
+                pyramid.push([
+                    { data: img1.data, width: currentWidth, height: currentHeight },
+                    { data: img2.data, width: currentWidth, height: currentHeight }
+                ]);
+            } else {
+                pyramid.push(null);
+            }
 
             if (i < this.numOctaves - 1) {
-                const downsampled = this._downsample(img2.data, currentWidth, currentHeight);
-                currentData = downsampled.data;
-                currentWidth = downsampled.width;
-                currentHeight = downsampled.height;
+                // For CPU downsampling, we STILL need to downsample even if we skip processing the current octave
+                // UNLESS the next octave is also skipped. But for simplicity and safety, we downsample if needed by ANY future octave.
+                const needsDownsample = !octavesToProcess || octavesToProcess.some(o => o > i);
+
+                if (needsDownsample) {
+                    // If current octave was processed, we use img1.data (or original data if i=0 and not processed?). 
+                    // Wait, standard is to downsample from the blurred image of previous octave.
+                    const sourceData = shouldProcess ? pyramid[i][0].data : currentData;
+                    const downsampled = this._downsample(sourceData, currentWidth, currentHeight);
+                    currentData = downsampled.data;
+                    currentWidth = downsampled.width;
+                    currentHeight = downsampled.height;
+                } else {
+                    // Optimization: if no more octaves are needed, we can stop here
+                    break;
+                }
             }
         }
 
@@ -251,10 +275,14 @@ export class DetectorLite {
     /**
      * Construye pirámide de diferencia de gaussianas
      */
-    _buildDogPyramid(pyramidImages) {
+    _buildDogPyramid(pyramidImages, octavesToProcess = null) {
         const dogPyramid = [];
 
         for (let i = 0; i < pyramidImages.length; i++) {
+            if (!pyramidImages[i]) {
+                dogPyramid.push(null);
+                continue;
+            }
             const img1 = pyramidImages[i][0];
             const img2 = pyramidImages[i][1];
             const width = img1.width;
@@ -279,6 +307,8 @@ export class DetectorLite {
 
         for (let octave = 0; octave < dogPyramid.length; octave++) {
             const curr = dogPyramid[octave];
+            if (!curr) continue;
+
             const prev = octave > 0 ? dogPyramid[octave - 1] : null;
             const next = octave < dogPyramid.length - 1 ? dogPyramid[octave + 1] : null;
 

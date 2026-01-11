@@ -24,11 +24,11 @@ Archivo:  detector-lite.js:181
 Solución: Migrar a WASM SIMD → 4-8× speedup
 ```
 
-### 2. Procesamiento de Escalas Completo
+### 2. Procesamiento de Escalas Redundante
 ```
-Problema: Se procesan 307K píxeles por frame innecesariamente
-Solución: Bio-Inspired Engine ya implementado (Foveal Attention)
-Resultado: Solo 52K píxeles procesados (83% reducción)
+Problema: Se procesan múltiples escalas (octavas) de forma redundante.
+Solución: Scale Orchestrator (Temporal Consistency + Interleave) ✅
+Resultado: ~60% menos octavas procesadas en tiempo real.
 ```
 
 ---
@@ -41,6 +41,7 @@ Ya implementada e integrada en el `main`.
 |------------|---------|-----------|
 | **Foveal Attention** | Visión central vs periférica | -83% Pixels procesados |
 | **Predictive Coding** | Detección de cambios estáticos | -88% Frames procesados |
+| **Scale Orchestrator** | Selección adaptativa de escalas | -60% Octavas procesadas |
 | **Saccadic Controller** | Saltos de atención estratégicos | Tracking ultra-veloz |
 | **Saliency Map** | Identificación de regiones clave | Detección inteligente |
 

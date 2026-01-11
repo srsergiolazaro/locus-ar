@@ -40,6 +40,7 @@ interface BioResult {
     attentionRegions?: any[];
     foveaCenter?: { x: number; y: number };
     pixelsSaved?: number;
+    octavesToProcess?: number[]; // Added for scale orchestration
 }
 
 /**
@@ -127,6 +128,7 @@ class BioInspiredController extends Controller {
                 const activeTracking = this.trackingStates.find(s => s.isTracking);
                 const trackingState = activeTracking ? {
                     isTracking: true,
+                    activeOctave: activeTracking.lastOctaveIndex, // Tracked octave index
                     worldMatrix: activeTracking.currentModelViewTransform
                         ? this._flattenMatrix(activeTracking.currentModelViewTransform)
                         : null
@@ -203,7 +205,7 @@ class BioInspiredController extends Controller {
             if (matchingIndexes.length > 0) {
                 // Use full input for detection (bio engine already optimized upstream processing)
                 const { targetIndex: matchedTargetIndex, modelViewTransform, featurePoints } =
-                    await this._detectAndMatch(inputData, matchingIndexes);
+                    await this._detectAndMatch(inputData, matchingIndexes, bioResult.octavesToProcess || null);
 
                 if (matchedTargetIndex !== -1) {
                     this.trackingStates[matchedTargetIndex].isTracking = true;
@@ -294,6 +296,69 @@ class BioInspiredController extends Controller {
         }
 
         this.onUpdate?.({ type: 'processDone' });
+    }
+
+    /**
+     * Detect and match features, optionally limited to specific octaves
+     */
+    async _detectAndMatch(inputData: any, targetIndexes: number[], octavesToProcess: number[] | null = null) {
+        const { targetIndex, modelViewTransform, screenCoords, worldCoords, featurePoints } = await this._workerMatch(
+            null, // No feature points, worker will detect from inputData
+            targetIndexes,
+            inputData,
+            octavesToProcess
+        );
+        return { targetIndex, modelViewTransform, screenCoords, worldCoords, featurePoints };
+    }
+
+    /**
+     * Communicate with worker for matching phase
+     */
+    _workerMatch(featurePoints: any, targetIndexes: number[], inputData: any = null, octavesToProcess: number[] | null = null): Promise<any> {
+        return new Promise((resolve) => {
+            if (!this.worker) {
+                // If no feature points but we have input data, detect first
+                let fpPromise;
+                if (!featurePoints && inputData) {
+                    fpPromise = Promise.resolve(this.fullDetector!.detect(inputData, { octavesToProcess }).featurePoints);
+                } else {
+                    fpPromise = Promise.resolve(featurePoints);
+                }
+
+                fpPromise.then(fp => {
+                    this._matchOnMainThread(fp, targetIndexes).then(resolve);
+                }).catch(() => resolve({ targetIndex: -1 }));
+                return;
+            }
+
+            const timeout = setTimeout(() => {
+                (this as any).workerMatchDone = null;
+                resolve({ targetIndex: -1 });
+            }, 1000);
+
+            (this as any).workerMatchDone = (data: any) => {
+                clearTimeout(timeout);
+                (this as any).workerMatchDone = null;
+                resolve(data);
+            };
+
+            if (inputData) {
+                this.worker.postMessage({ type: "match", inputData, targetIndexes, octavesToProcess });
+            } else {
+                this.worker.postMessage({ type: "match", featurePoints: featurePoints, targetIndexes });
+            }
+        });
+    }
+
+    /**
+     * Override _trackAndUpdate to capture active octave for the next frame's orchestration
+     */
+    async _trackAndUpdate(inputData: any, lastModelViewTransform: number[][], targetIndex: number) {
+        const result = await super._trackAndUpdate(inputData, lastModelViewTransform, targetIndex);
+        if (result && (result as any).octaveIndex !== undefined) {
+            this.trackingStates[targetIndex].lastOctaveIndex = (result as any).octaveIndex;
+        }
+        return result;
     }
 
     /**

@@ -361,7 +361,8 @@ class Controller {
             screenCoords: finalScreenCoords,
             reliabilities: finalReliabilities,
             stabilities: finalStabilities,
-            deformedMesh
+            deformedMesh,
+            octaveIndex // Pass this up for the orchestrator
         };
     }
 

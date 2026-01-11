@@ -15,3 +15,4 @@ export { FovealAttention } from './foveal-attention.js';
 export { SaccadicController } from './saccadic-controller.js';
 export { PredictiveCoding } from './predictive-coding.js';
 export { SaliencyMap } from './saliency-map.js';
+export { ScaleOrchestrator } from './scale-orchestrator.js';

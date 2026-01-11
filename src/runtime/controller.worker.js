@@ -49,7 +49,7 @@ onmessage = (msg) => {
       // New: If the worker received image data, run detector here too
       let featurePoints = data.featurePoints;
       if (data.inputData) {
-        const detectionResult = detector.detect(data.inputData);
+        const detectionResult = detector.detect(data.inputData, { octavesToProcess: data.octavesToProcess });
         featurePoints = detectionResult.featurePoints;
       }
 

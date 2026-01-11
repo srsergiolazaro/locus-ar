@@ -16,6 +16,7 @@ import { FovealAttention } from './foveal-attention.js';
 import { SaccadicController } from './saccadic-controller.js';
 import { PredictiveCoding } from './predictive-coding.js';
 import { SaliencyMap } from './saliency-map.js';
+import { ScaleOrchestrator } from './scale-orchestrator.js';
 
 /**
  * Configuration for Bio-Inspired Engine
@@ -43,6 +44,7 @@ const BIO_CONFIG = {
     // Performance
     ENABLE_SKIP_FRAMES: true,        // Skip processing if nothing changed
     MIN_PROCESSING_INTERVAL_MS: 8,   // Minimum 8ms (~120fps cap)
+    NUM_OCTAVES: 5,                  // Default number of octaves
 };
 
 /**
@@ -65,6 +67,9 @@ class BioInspiredEngine {
         this.saccadicController = new SaccadicController(width, height, this.config);
         this.predictiveCoding = new PredictiveCoding(width, height, this.config);
         this.saliencyMap = new SaliencyMap(width, height);
+        this.scaleOrchestrator = new ScaleOrchestrator(this.config.NUM_OCTAVES, {
+            debug: options.debugMode
+        });
 
         // State tracking
         this.currentFoveaCenter = { x: width / 2, y: height / 2 };
@@ -164,7 +169,10 @@ class BioInspiredEngine {
             this.currentFoveaCenter = { x: primary.x, y: primary.y };
         }
 
-        // Step 6: Store frame for prediction
+        // Step 6: Scale Orchestrator - Determine octaves to process
+        const octavesToProcess = this.scaleOrchestrator.getOctavesToProcess(trackingState);
+
+        // Step 7: Store frame for prediction
         this.predictiveCoding.storeFrame(inputData, trackingState);
 
         // Compute metrics
@@ -176,6 +184,7 @@ class BioInspiredEngine {
             attentionRegions,
             foveaCenter: this.currentFoveaCenter,
             saliencyPeaks: saliency.peaks,
+            octavesToProcess,
             pixelsProcessed: totalPixelsProcessed,
             pixelsSaved: this.width * this.height - totalPixelsProcessed,
             savingsPercent: ((1 - totalPixelsProcessed / (this.width * this.height)) * 100).toFixed(1),
