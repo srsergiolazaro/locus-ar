@@ -49,6 +49,14 @@ Image-based Augmented Reality (AR) systems rely on computationally intensive fea
 
 \section{Introduction}
 
+% ==================== AR DEMO IMAGE ====================
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.9\columnwidth]{figures/ar_tracking_demo.png}
+\caption{TapTapp AR in action: Real-time image tracking with detected feature points (green dots) and 3D content overlay. HD 1280×960 resolution enables precise tracking.}
+\label{fig:ar_demo}
+\end{figure}
+
 Mobile Augmented Reality (AR) applications based on image tracking require a preprocessing step called \textit{target compilation}, where reference images are analyzed to extract distinctive visual features. These features enable real-time matching against camera frames during runtime \cite{mindar2021}.
 
 The dominant open-source solution, MindAR \cite{mindar2021}, employs TensorFlow.js \cite{tfjs2019} for its feature extraction pipeline, leveraging tensor operations for:
@@ -164,6 +172,14 @@ The high-level API (\texttt{track.ts}) provides seamless integration with React 
 
 \subsection{Client-Side JIT Compilation}
 
+% ==================== JIT COMPILATION FLOW ====================
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/jit_compilation.png}
+\caption{JIT Compilation Flow: From image URL to ready-to-track .taar binary in under 1 second. No server-side preprocessing required.}
+\label{fig:jit}
+\end{figure}
+
 A key innovation of Protocol V11 is ``Just-In-Time'' (JIT) compilation. Unlike traditional approaches requiring offline pre-processing, our engine performs the entire feature extraction pipeline on the client device in under 1 second:
 
 \begin{itemize}
@@ -214,6 +230,14 @@ Unlike previous versions that generated multiple scaled images, Protocol V11 emp
 \subsection{Bio-Inspired Processing}
 
 \subsubsection{Foveal Attention}
+
+% ==================== FOVEAL ATTENTION ====================
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.9\columnwidth]{figures/foveal_attention.png}
+\caption{Foveal Attention Model: High-resolution processing in the central fovea, progressively lower resolution in peripheral zones. Reduces processed pixels by 83\%.}
+\label{fig:foveal}
+\end{figure}
 
 Inspired by biological visual systems, we implement selective attention that concentrates high-resolution processing on regions of interest:
 
@@ -275,6 +299,14 @@ Our DetectorLite implementation follows a 9-stage pipeline (Figure~\ref{fig:pipe
 
 \subsubsection{Stage 1: Gaussian Pyramid Construction}
 
+% ==================== GAUSSIAN PYRAMID ====================
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.75\columnwidth]{figures/gaussian_pyramid.png}
+\caption{Gaussian Pyramid: Multi-octave image representation. Each level is half the resolution with increased blur for scale-invariant feature detection.}
+\label{fig:gaussian}
+\end{figure}
+
 We construct an octave-based pyramid using a separable 5-tap binomial filter with weights $[1, 4, 6, 4, 1] / 16$. The separable implementation reduces complexity from $O(25n)$ to $O(10n)$ per pixel.
 
 \paragraph{Border Normalization:} We implemented an on-the-fly normalization $G' = G \cdot (1/\sum w)$ to ensure constant intensity across the entire frame, eliminating false feature detection at target edges.
@@ -297,6 +329,14 @@ where $G_{o,i}$ represents the $i$-th Gaussian-filtered image at octave $o$.
 
 \subsubsection{Stage 3: Extrema Detection}
 
+% ==================== DOG EXTREMA ====================
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.8\columnwidth]{figures/dog_extrema.png}
+\caption{DoG Scale-Space Cube: Each candidate pixel (red center) is compared against 26 neighbors across three scale levels ($\sigma-1$, $\sigma$, $\sigma+1$) for extrema detection.}
+\label{fig:dog}
+\end{figure}
+
 Local extrema are detected by comparing each pixel to its 26 neighbors in the 3×3×3 scale-space cube:
 
 \begin{equation}
@@ -312,6 +352,14 @@ Features are distributed into an $N \times N$ grid of buckets, retaining only th
 Dominant orientation is computed via a 36-bin histogram of gradient directions within a circular window.
 
 \subsubsection{Stage 6: FREAK Descriptors}
+
+% ==================== FREAK PATTERN ====================
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.75\columnwidth]{figures/freak_pattern.png}
+\caption{FREAK Retinal Sampling Pattern: Bio-inspired descriptor with 43 sampling points. Higher density in the foveal center, sparser in the periphery, mimicking human retina.}
+\label{fig:freak}
+\end{figure}
 
 Binary descriptors are computed by sampling 43 points in a retinal pattern and performing pairwise intensity comparisons, yielding a 512-bit descriptor.
 
@@ -371,6 +419,14 @@ Protocol V11 integrates a visual search system based on Hyperdimensional Computi
 \label{fig:hdc}
 \end{figure}
 
+% ==================== HDC HYPERVECTOR ====================
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/hdc_hypervector.png}
+\caption{HDC Transformation: Image features are projected into a compact 128-bit binary hypervector (16 bytes) for ultra-fast similarity comparison via Hamming distance.}
+\label{fig:hypervector}
+\end{figure}
+
 \subsubsection{Vector Construction}
 
 \begin{enumerate}
@@ -386,6 +442,14 @@ Protocol V11 integrates a visual search system based on Hyperdimensional Computi
     \item \textbf{Standard (32 Bytes)}: Balanced mode for AR applications requiring higher safety margins.
 \end{itemize}
 
+% ==================== SIMILARITY MATRIX ====================
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.85\columnwidth]{figures/similarity_matrix.png}
+\caption{HDC Similarity Matrix (100×100 images): Diagonal shows self-similarity (yellow = 100\%), off-diagonal shows low cross-similarity (dark blue $\approx$ 50\%), demonstrating strong discriminative power. Tested on diverse stock images with 44M+ comparisons/second.}
+\label{fig:similarity}
+\end{figure}
+
 \subsection{RAG Compatibility (LLM Ecosystem)}
 
 For interoperability with modern AI ecosystems (Pinecone, Milvus, LangChain), the subsystem offers a projection layer to \textbf{Dense Vectors}:
@@ -399,7 +463,23 @@ For interoperability with modern AI ecosystems (Pinecone, Milvus, LangChain), th
 
 To support non-planar surfaces (curved banners, clothing), we replace rigid homography with a \textbf{Deformable Delaunay Mesh}.
 
+% ==================== DELAUNAY MESH ====================
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.85\columnwidth]{figures/delaunay_mesh.png}
+\caption{Delaunay Triangulation Mesh: 50 vertices connected by triangles enable non-rigid tracking. Arrows show deformation capability for curved surfaces.}
+\label{fig:delaunay}
+\end{figure}
+
 \subsection{Mass-Spring Relaxation}
+
+% ==================== MASS SPRING ====================
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.9\columnwidth]{figures/mass_spring.png}
+\caption{Mass-Spring Relaxation: Vertices (blue nodes) connected by springs. Red=stretched (tension), green=compressed, gray=at rest. Purple arrows show force vectors for mesh optimization.}
+\label{fig:massspring}
+\end{figure}
 
 During tracking, mesh vertices are treated as masses connected by springs with rest length $L_0$ equal to their original distance. Vertex positions $V'$ are optimized by minimizing:
 
@@ -503,6 +583,14 @@ Mobile FPS & 15-20 & 50-60 & +3× \\
 }
 \caption{Performance comparison: TapTapp AR achieves 23× faster compilation and 200× smaller bundle.}
 \label{fig:comparison}
+\end{figure}
+
+% ==================== PERFORMANCE CHART ====================
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\columnwidth]{figures/performance_chart.png}
+\caption{Framework Comparison: TapTapp AR vs MindAR. TapTapp achieves 24× faster compilation ($\sim$1s vs 24s) and 200× smaller bundle (0.1MB vs 20MB).}
+\label{fig:perfchart}
 \end{figure}
 
 \section{Future Architecture: WASM SIMD}
