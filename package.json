@@ -31,7 +31,7 @@
     "bugs": {
         "url": "https://github.com/srsergiolazaro/taptapp-ar/issues"
     },
-    "homepage": "https://github.com/srsergiolazaro/taptapp-ar#readme",
+    "homepage": "https://srsergiolazaro.github.io/taptapp-ar/",
     "type": "module",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
