@@ -3,12 +3,20 @@
    ============================================================================= */
 
 document.addEventListener('DOMContentLoaded', () => {
-    initParticles();
     initScrollAnimations();
     initNavbar();
     initCopyButtons();
     initCodeTabs();
     initMetricCounters();
+
+    // Delay particle background and heavy animations to prioritize LCP
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => {
+            initParticles();
+        });
+    } else {
+        setTimeout(initParticles, 1000);
+    }
 });
 
 /* -----------------------------------------------------------------------------
