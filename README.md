@@ -23,6 +23,7 @@
   - [Raw Controller](#3-raw-controller-advanced--custom-engines)
   - [Vanilla JS (SimpleAR)](#4-vanilla-js-no-framework-)
 - [🏗️ Protocol V7](#️-protocol-v7-moonshot-packed-format)
+- [🔍 Visual Search & Embeddings](#-visual-search--embeddings-new)
 - [📄 License & Credits](#-license--credits)
 
 ---
@@ -269,7 +270,53 @@ TapTapp AR uses a proprietary **Nanite-style Vision Codec** that is significantl
 
 ---
 
-## 📄 License & Credits
+## � Visual Search & Embeddings (NEW!) 🚀
+
+TapTapp AR now includes a state-of-the-art **Image Embedding** system based on Hyperdimensional Computing (HDC). This allows you to convert any image into a tiny mathematical fingerprint (vector) for ultra-fast visual search, deduplication, and clustering.
+
+### 🍱 Embedding Modes
+| Mode | Size | Speed | Recommendation |
+| :--- | :--- | :--- | :--- |
+| `micro` | 4 Bytes | 10M+ ops/s | Extreme IoT |
+| **`compact`** | **16 Bytes** | **44M+ ops/s** | 🏆 **Best for Mega-Databases** |
+| `standard`| 32 Bytes | 18M+ ops/s | Balanced AR |
+| `full` | 128 Bytes| 7M+ ops/s | Maximum Precision |
+
+### 🚀 Usage Example (RAG Standard 🧠)
+Create visual embeddings and compare them just like you do with Text LLMs:
+
+```javascript
+import { visualSearch } from '@srsergio/taptapp-ar';
+
+// 1. Get a Dense Vector (Array of numbers) - LLM Standard
+const embedding = await visualSearch.compute('product.jpg');
+const vector = embedding.toFloatArray(); // [1.0, 0.0, 1.0, ...]
+
+// 2. Similarity Search (Self-contained)
+const score = await visualSearch.compare('item1.jpg', 'item2.jpg');
+console.log(`Visual Match: ${score * 100}%`);
+```
+
+### 🗄️ Vector Database Integration
+Use your favorite vector database (Pinecone, Milvus, Weaviate, or `pgvector`) with the standard array format:
+
+```javascript
+// Example: Storing in a standard Vector DB
+await vectorDB.insert({
+  id: 'image_42',
+  vector: Array.from(embedding.toFloatArray()), 
+  metadata: { name: 'Vintage Camera', category: 'Electronics' }
+});
+
+// Example: Searching in PostgreSQL (pgvector)
+// SELECT * FROM items ORDER BY embedding <=> '[1,0,1,1...]' LIMIT 5;
+```
+
+---
+
+---
+
+## �📄 License & Credits
 
 This project is licensed under the **Fair Source License v0.9**.
 

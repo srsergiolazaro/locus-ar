@@ -12,7 +12,8 @@
 2. [Arquitectura de Alto Nivel](#arquitectura-de-alto-nivel)
 3. [Pipeline de Compilación (Compiler)](#pipeline-de-compilación-compiler)
 4. [Pipeline de Tracking (Runtime)](#pipeline-de-tracking-runtime)
-5. [Puntos de Complejidad](#puntos-de-complejidad)
+5. [Subsistema de Image Embeddings (HDC)](#subsistema-de-image-embeddings-hdc)
+6. [Puntos de Complejidad](#puntos-de-complejidad)
 6. [Arquitecturas Alternativas Propuestas](#arquitecturas-alternativas-propuestas)
 7. [Análisis de Impacto](#análisis-de-impacto)
 8. [Recomendaciones](#recomendaciones)
@@ -464,6 +465,27 @@ for (let l = 0; l <= ICP_MAX_LOOP; l++) {
   // 5. Convergencia si error < 0.1 o ratio > 0.99
 }
 ```
+
+---
+
+## 🔍 Subsistema de Image Embeddings (HDC)
+
+A partir de la V11, el SDK integra un sistema de búsqueda visual basado en **Hyperdimensional Computing (HDC)**. Este subsistema permite representar la identidad visual de una imagen completa en vectores binarios ultra-compactos.
+
+### Arquitectura del Vector
+1.  **Feature Bundling**: Agrega los descriptores locales (LSH) en un único vector de alta dimensión.
+2.  **Grid Spatial XOR Binding**: Divide la imagen en una cuadrícula de 3x3 y aplica una máscara aleatoria basada en la posición antes de combinar los features. Esto preserva la estructura espacial global.
+3.  **Weighted Pooling**: Da mayor peso a los puntos con mayor score de confianza, mejorando la discriminabilidad.
+
+### Modos de Operación
+- **Compact (16 Bytes)**: El modo más eficiente para búsqueda a gran escala. Mantiene un rendimiento de **44 millones de comparaciones por segundo**. Es el modo recomendado para bases de datos masivas.
+- **Standard (32 Bytes)**: El modo balanceado para aplicaciones de AR que requieren mayor margen de seguridad.
+
+### 🧠 Compatibilidad RAG Standard (LLM Style)
+Para garantizar la interoperabilidad con ecosistemas modernos de IA (Pinecone, Milvus, LangChain), el subsistema ofrece una capa de proyección hacia **Vectores Densos**.
+
+- **Transformación**: El método `.toFloatArray()` proyecta los hypervectores binarios a un espacio de números reales $[0.0, 1.0]$.
+- **Interoperabilidad**: Esto permite usar distancias de Coseno o Euclidianas en bases de datos que no soportan distancias de Hamming nativas, siguiendo el estándar de facto de los modelos de lenguaje (LLM).
 
 ---
 

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualización de Matriz de Similitud - MEGA (100x100)</title>
+    <style>
+        :root {
+            --bg: #030712;
+            --text: #f8fafc;
+            --card: #111827;
+            --primary: #38bdf8;
+            --accent: #818cf8;
+            --error: #f43f5e;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--primary);
+            letter-spacing: -0.025em;
+        }
+
+        .subtitle {
+            margin: 5px 0 0;
+            opacity: 0.6;
+            font-size: 14px;
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+            max-width: 1000px;
+            align-items: center;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            background: var(--card);
+            padding: 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            cursor: crosshair;
+        }
+
+        canvas {
+            image-rendering: pixelated;
+            display: block;
+        }
+
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+            border: 1px solid var(--primary);
+            z-index: 100;
+            white-space: nowrap;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            width: 100%;
+        }
+
+        .stat-card {
+            background: var(--card);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .stat-val {
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--primary);
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 10px;
+            opacity: 0.5;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-top: 4px;
+        }
+
+        .legend-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 10px;
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .gradient-bar {
+            width: 300px;
+            height: 10px;
+            background: linear-gradient(to right, #440154, #3b528b, #21918c, #5ec962, #fde725);
+            border-radius: 5px;
+        }
+
+        #error-msg {
+            display: none;
+            background: rgba(244, 63, 94, 0.1);
+            color: var(--error);
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--error);
+            margin-bottom: 20px;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            background: var(--primary);
+            color: var(--bg);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.1);
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <h1>Análisis de Embeddings MEGA</h1>
+        <p class="subtitle" id="mode-subtitle">Iniciando motor de visualización...</p>
+    </div>
+
+    <div id="error-msg"></div>
+
+    <div class="main-container">
+        <div class="stats" id="stats-box" style="visibility:hidden">
+            <div class="stat-card">
+                <span class="stat-val" id="stat-count">-</span>
+                <span class="stat-label">Imágenes</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-val" id="stat-bits">-</span>
+                <span class="stat-label">Vector Size</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-val" id="stat-noise">-</span>
+                <span class="stat-label">Ruido Promedio</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-val" id="stat-collisions">-</span>
+                <span class="stat-label">Colisiones</span>
+            </div>
+        </div>
+
+        <div class="canvas-wrapper" id="wrapper">
+            <canvas id="heatmap"></canvas>
+            <div class="tooltip" id="tooltip"></div>
+        </div>
+
+        <div class="legend-container">
+            <span>Similitud: 0%</span>
+            <div class="gradient-bar"></div>
+            <span>100%</span>
+        </div>
+
+        <p style="font-size: 11px; opacity: 0.4; margin-top: 20px;">
+            Pasa el mouse sobre la matriz para ver detalles. Cada pixel es una comparación.
+        </p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('heatmap');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        const tooltip = document.getElementById('tooltip');
+        let currentData = null;
+        let cellSize = 8;
+
+        async function init() {
+            try {
+                const res = await fetch('similarity_data.json');
+                if (!res.ok) throw new Error('Ejecuta el test para generar similarity_data.json');
+                currentData = await res.json();
+                render();
+            } catch (err) {
+                const errorEl = document.getElementById('error-msg');
+                errorEl.innerHTML = window.location.protocol === 'file:'
+                    ? "<strong>Error de CORS:</strong> Ejecuta <code>npx serve .</code> y abre la URL local."
+                    : err.message;
+                errorEl.style.display = 'block';
+            }
+        }
+
+        function getColor(v) {
+            // Viridis palette
+            const colors = [
+                [68, 1, 84],   // 0.0
+                [59, 82, 139],  // 0.25
+                [33, 145, 140], // 0.5
+                [94, 201, 98],  // 0.75
+                [253, 231, 37]  // 1.0
+            ];
+
+            let idx = v * (colors.length - 1);
+            let i = Math.floor(idx);
+            let f = idx - i;
+
+            if (i >= colors.length - 1) return `rgb(${colors[i].join(',')})`;
+
+            const r = Math.round(colors[i][0] + f * (colors[i + 1][0] - colors[i][0]));
+            const g = Math.round(colors[i][1] + f * (colors[i + 1][1] - colors[i][1]));
+            const b = Math.round(colors[i][2] + f * (colors[i + 1][2] - colors[i][2]));
+
+            return `rgb(${r},${g},${b})`;
+        }
+
+        function render() {
+            const { matrix, labels, stats, mode, bits } = currentData;
+            const n = labels.length;
+
+            // Stats
+            document.getElementById('mode-subtitle').innerText = `Modo ${mode.toUpperCase()} - Matriz de Confusión ${n}x${n}`;
+            document.getElementById('stat-count').innerText = n;
+            document.getElementById('stat-bits').innerText = `${bits}b`;
+            document.getElementById('stat-noise').innerText = `${stats.avgNoise}%`;
+            document.getElementById('stat-collisions').innerText = stats.collisions || 0;
+            document.getElementById('stats-box').style.visibility = 'visible';
+
+            // Canvas size
+            const targetSize = Math.min(window.innerWidth - 60, 800);
+            cellSize = Math.floor(targetSize / n);
+            if (cellSize < 1) cellSize = 1;
+
+            canvas.width = n * cellSize;
+            canvas.height = n * cellSize;
+
+            // Draw matrix
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                    ctx.fillStyle = getColor(matrix[i][j]);
+                    ctx.fillRect(j * cellSize, i * cellSize, cellSize, cellSize);
+                }
+            }
+
+            // Highlighting diagonal subtly (optional)
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(canvas.width, canvas.height);
+            ctx.stroke();
+        }
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!currentData) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            const col = Math.floor(x / cellSize);
+            const row = Math.floor(y / cellSize);
+
+            if (row >= 0 && row < currentData.matrix.length && col >= 0 && col < currentData.matrix[0].length) {
+                const val = currentData.matrix[row][col];
+                const img1 = currentData.labels[row];
+                const img2 = currentData.labels[col];
+
+                tooltip.style.display = 'block';
+                tooltip.style.left = `${e.clientX - rect.left + 15}px`;
+                tooltip.style.top = `${e.clientY - rect.top + 15}px`;
+                tooltip.innerHTML = `
+                    <div style="font-weight:800; color:var(--primary)">${(val * 100).toFixed(1)}% Similitud</div>
+                    <div style="font-size:10px; opacity:0.7; margin-top:4px">
+                        A: <b>${img1}</b><br>
+                        B: <b>${img2}</b>
+                    </div>
+                `;
+            } else {
+                tooltip.style.display = 'none';
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            tooltip.style.display = 'none';
+        });
+
+        window.addEventListener('resize', render);
+        init();
+    </script>
+</body>
+
+</html>

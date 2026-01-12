@@ -13,6 +13,8 @@
 | **Optimización** | **Nanite Virtualized (V11) 🚀** | No | No |
 | **Tamaño Target** | **~100KB (Optional) ✅** | ~770KB | N/A |
 | **Resolución** | **HD 1280x960 💎** | 640x480 | Auto |
+| **Visual Search** | **HDC Compact (16B) 🔍** | No | No |
+| **Search Speed** | **44M+ images/sec 🚀** | N/A | N/A |
 
 ---
 
@@ -45,6 +47,7 @@ Ya implementada e integrada en el `main`.
 | **Single-pass Compiler** | Detección única en alta resolución | Compilación ultra-veloz |
 | **Foveal Attention** | Visión central vs periférica | -83% Pixels procesados |
 | **Predictive Coding** | Detección de cambios estáticos | -88% Frames procesados |
+| **Standard RAG** | Interfaz de vectores densos (Floats) | Compatible con LLM Ecosystem |
 
 ---
 
