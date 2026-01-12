@@ -28,14 +28,15 @@
 - [🛠 Installation](#-installation)
 - [📊 Industry-Leading Benchmarks](#-industry-leading-benchmarks-v7-moonshot)
 - [🛡️ Robustness & Stability](#️-robustness--stability-stress-tested)
-- [🖼️ Compiler Usage](#️-compiler-usage-nodejs--web)
+- [🖼️ Compiler Usage](#️-compiler-usage-automatic--jit)
 - [🎥 Runtime Usage](#-runtime-usage-ar-tracking)
-  - [A-Frame Integration](#1-simple-a-frame-integration)
-  - [Three.js Wrapper](#2-high-performance-threejs-wrapper)
-  - [Raw Controller](#3-raw-controller-advanced--custom-engines)
-  - [Vanilla JS (SimpleAR)](#4-vanilla-js-no-framework-)
-- [🏗️ Protocol V7](#️-protocol-v7-moonshot-packed-format)
-- [🔍 Visual Search & Embeddings](#-visual-search--embeddings-new)
+  - [React Component](#1-the-easy-way-react-component-)
+  - [React Hook](#2-high-performance-react-hook-usear-)
+  - [Native API](#3-native-api-starttracking)
+  - [Custom Overlays](#4-custom-overlays-beyond-videoimages-)
+  - [Three.js / A-Frame](#5-advanced-integration-threejs--a-frame)
+- [🏗️ Protocol V11](#️-protocol-v11-nanite-virtualized-format)
+- [🔍 Visual Search & Embeddings](#-visual-search--embeddings-new-)
 - [📄 License & Credits](#-license--credits)
 
 ---
@@ -268,7 +269,7 @@ The `onUpdate` callback provides a rich data object:
 - `worldMatrix`: 4x4 matrix for WebGL/Three.js integration.
 - `targetDimensions`: `[width, height]` of the source target.
 
-### 3. Advanced Integration (Three.js / A-Frame)
+### 5. Advanced Integration (Three.js / A-Frame)
 
 We still provide wrappers for 3D engines if you need to render complex 3D models instead of DOM overlays.
 
@@ -354,7 +355,7 @@ await vectorDB.insert({
 
 ---
 
-## �📄 License & Credits
+## 📄 License & Credits
 
 This project is licensed under the **Fair Source License v0.9**.
 
