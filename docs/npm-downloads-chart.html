@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LOCUS - Estadísticas de Descargas npm</title>
+    <meta name="description" content="Estadísticas de descargas en tiempo real del SDK LOCUS AR">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --locus-primary: #6366f1;
+            --locus-primary-dark: #4f46e5;
+            --locus-primary-light: #818cf8;
+            --locus-accent: #06b6d4;
+            --locus-gray: #64748b;
+            --locus-light: #f8fafc;
+            --locus-white: #ffffff;
+            --locus-dark: #1e293b;
+            --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--locus-light);
+            min-height: 100vh;
+            color: var(--locus-dark);
+            padding: 1.5rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .logo {
+            font-size: 2rem;
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--locus-gray);
+            font-size: 1rem;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--locus-primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 500;
+            margin-bottom: 1.5rem;
+            transition: color 0.3s;
+        }
+
+        .back-link:hover {
+            color: var(--locus-primary-dark);
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        @media (min-width: 640px) {
+            .stats-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
+        .stat-card {
+            background: var(--locus-white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.1);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--locus-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            color: var(--locus-gray);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            background: var(--locus-white);
+            border-radius: 20px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            margin-bottom: 1.5rem;
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .chart-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .chart-title .dot {
+            width: 12px;
+            height: 12px;
+            background: var(--locus-primary);
+            border-radius: 50%;
+        }
+
+        .chart-range {
+            color: var(--locus-gray);
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .chart-wrapper {
+            height: 350px;
+        }
+
+        @media (min-width: 640px) {
+            .chart-wrapper {
+                height: 400px;
+            }
+        }
+
+        /* Package Info */
+        .package-info {
+            background: var(--locus-white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .package-name {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .package-icon {
+            width: 50px;
+            height: 50px;
+            background: var(--gradient-primary);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.25rem;
+            color: white;
+        }
+
+        .package-details h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .package-details p {
+            color: var(--locus-gray);
+            font-size: 0.85rem;
+        }
+
+        .package-links {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .package-links a {
+            padding: 0.75rem 1.25rem;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.3s;
+        }
+
+        .npm-link {
+            background: #cb3837;
+            color: white;
+        }
+
+        .npm-link:hover {
+            background: #e53935;
+            transform: translateY(-2px);
+        }
+
+        .github-link {
+            background: #f1f5f9;
+            color: var(--locus-dark);
+            border: 1px solid #e2e8f0;
+        }
+
+        .github-link:hover {
+            background: #e2e8f0;
+            transform: translateY(-2px);
+        }
+
+        .home-link {
+            background: var(--locus-primary);
+            color: white;
+        }
+
+        .home-link:hover {
+            background: var(--locus-primary-dark);
+            transform: translateY(-2px);
+        }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 200px;
+            color: var(--locus-gray);
+        }
+
+        .loading::after {
+            content: '';
+            width: 24px;
+            height: 24px;
+            border: 3px solid #f1f5f9;
+            border-top-color: var(--locus-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 0.75rem;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 1.5rem;
+            color: var(--locus-gray);
+            font-size: 0.85rem;
+        }
+
+        .footer a {
+            color: var(--locus-primary);
+            text-decoration: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">← Volver a LOCUS</a>
+
+        <div class="header">
+            <div class="logo">LOCUS</div>
+            <p class="subtitle">Estadísticas de Descargas npm en Tiempo Real</p>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="total-downloads">-</div>
+                <div class="stat-label">Descargas Totales</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="avg-downloads">-</div>
+                <div class="stat-label">Promedio Diario</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="peak-downloads">-</div>
+                <div class="stat-label">Pico de Descargas</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="peak-date">-</div>
+                <div class="stat-label">Fecha Pico</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <span class="dot"></span>
+                    <span>Descargas Acumuladas</span>
+                </div>
+                <div class="chart-range" id="chart-range">Cargando datos...</div>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="downloadsChart"></canvas>
+            </div>
+        </div>
+
+        <div class="package-info">
+            <div class="package-name">
+                <div class="package-icon">L</div>
+                <div class="package-details">
+                    <h3>@srsergio/taptapp-ar</h3>
+                    <p>SDK de Realidad Aumentada por LOCUS</p>
+                </div>
+            </div>
+            <div class="package-links">
+                <a href="index.html" class="home-link">LOCUS</a>
+                <a href="https://www.npmjs.com/package/@srsergio/taptapp-ar" target="_blank" class="npm-link">Ver en
+                    npm</a>
+                <a href="https://github.com/srsergio/taptapp-ar" target="_blank" class="github-link">GitHub</a>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        © 2026 <a href="index.html">LOCUS</a>. Datos obtenidos en tiempo real de la API de npm.
+    </footer>
+
+    <script>
+        // Fetch npm downloads data in real-time
+        async function fetchDownloads() {
+            const today = new Date();
+            const startDate = '2026-01-02';
+            const endDate = today.toISOString().split('T')[0];
+
+            try {
+                const response = await fetch(`https://api.npmjs.org/downloads/range/${startDate}:${endDate}/@srsergio/taptapp-ar`);
+                const data = await response.json();
+
+                if (data.downloads) {
+                    renderChart(data.downloads);
+                    updateStats(data.downloads);
+                    updateDateRange(data.start, data.end);
+                }
+            } catch (error) {
+                console.error('Error fetching npm data:', error);
+                document.getElementById('chart-range').textContent = 'Error al cargar datos';
+            }
+        }
+
+        function renderChart(downloads) {
+            // Calculate cumulative downloads
+            let cumulative = 0;
+            const cumulativeData = downloads.map(d => {
+                cumulative += d.downloads;
+                return cumulative;
+            });
+
+            // Format dates for display
+            const labels = downloads.map(d => {
+                const date = new Date(d.day);
+                return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+            });
+
+            const ctx = document.getElementById('downloadsChart').getContext('2d');
+
+            // Create gradient
+            const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+            gradient.addColorStop(0, 'rgba(99, 102, 241, 0.2)');
+            gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Descargas Acumuladas',
+                        data: cumulativeData,
+                        borderColor: '#6366f1',
+                        backgroundColor: gradient,
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHoverRadius: 6,
+                        pointHoverBackgroundColor: '#6366f1',
+                        pointHoverBorderColor: '#fff',
+                        pointHoverBorderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            titleColor: '#fff',
+                            bodyColor: '#fff',
+                            borderColor: 'rgba(99, 102, 241, 0.5)',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                                label: function (context) {
+                                    return `Total: ${context.parsed.y.toLocaleString()} descargas`;
+                                },
+                                afterLabel: function (context) {
+                                    const dailyDownloads = downloads[context.dataIndex].downloads;
+                                    return `Diario: +${dailyDownloads.toLocaleString()}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.03)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#64748b',
+                                maxTicksLimit: 8,
+                                font: { size: 11 }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.03)',
+                                drawBorder: false
+                            },
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 11 },
+                                callback: function (value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateStats(downloads) {
+            const totalDownloads = downloads.reduce((sum, d) => sum + d.downloads, 0);
+            const avgDownloads = Math.round(totalDownloads / downloads.length);
+            const peakDownloads = Math.max(...downloads.map(d => d.downloads));
+            const peakDate = downloads.find(d => d.downloads === peakDownloads);
+
+            document.getElementById('total-downloads').textContent = totalDownloads.toLocaleString();
+            document.getElementById('avg-downloads').textContent = avgDownloads.toLocaleString();
+            document.getElementById('peak-downloads').textContent = peakDownloads.toLocaleString();
+            document.getElementById('peak-date').textContent = new Date(peakDate.day).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+        }
+
+        function updateDateRange(start, end) {
+            const startDate = new Date(start);
+            const endDate = new Date(end);
+            const formatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
+            document.getElementById('chart-range').textContent =
+                `${startDate.toLocaleDateString('es-ES', formatOptions)} - ${endDate.toLocaleDateString('es-ES', formatOptions)}`;
+        }
+
+        // Initialize
+        fetchDownloads();
+    </script>
+</body>
+
+</html>

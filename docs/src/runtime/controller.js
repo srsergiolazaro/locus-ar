@@ -1,0 +1,592 @@
+import { Tracker } from "../core/tracker/tracker.js";
+import { InputLoader } from "../core/input-loader.js";
+import { FeatureManager } from "../core/features/feature-manager.js";
+import { OneEuroFilterFeature } from "../core/features/one-euro-filter-feature.js";
+import { TemporalFilterFeature } from "../core/features/temporal-filter-feature.js";
+import { AutoRotationFeature } from "../core/features/auto-rotation-feature.js";
+import { DetectorLite } from "../core/detector/detector-lite.js";
+import * as protocol from "../core/protocol.js";
+import { AR_CONFIG } from "../core/constants.js";
+let ControllerWorker;
+// Conditional import for worker to avoid crash in non-vite environments
+const getControllerWorker = async () => {
+    if (typeof Worker === 'undefined')
+        return null;
+    try {
+        // @ts-ignore
+        const workerModule = await import("./controller.worker.js?worker&inline");
+        return workerModule.default;
+    }
+    catch (e) {
+        return null;
+    }
+};
+ControllerWorker = await getControllerWorker();
+const DEFAULT_FILTER_CUTOFF = AR_CONFIG.ONE_EURO_FILTER_CUTOFF;
+const DEFAULT_FILTER_BETA = AR_CONFIG.ONE_EURO_FILTER_BETA;
+const DEFAULT_WARMUP_TOLERANCE = AR_CONFIG.WARMUP_TOLERANCE;
+const DEFAULT_MISS_TOLERANCE = AR_CONFIG.MISS_TOLERANCE;
+const WORKER_TIMEOUT_MS = 1000; // Prevent worker hangs from killing the loop
+let loopIdCounter = 0;
+class Controller {
+    inputWidth;
+    inputHeight;
+    maxTrack;
+    inputLoader;
+    markerDimensions = null;
+    onUpdate;
+    debugMode;
+    processingVideo = false;
+    interestedTargetIndex = -1;
+    trackingStates = [];
+    worker;
+    projectionTransform;
+    projectionMatrix;
+    tracker = null;
+    matchingDataList;
+    workerMatchDone = null;
+    workerTrackDone = null;
+    workerFullTrackDone = null;
+    mainThreadMatcher;
+    mainThreadEstimator;
+    featureManager;
+    fullDetector = null;
+    constructor({ inputWidth, inputHeight, onUpdate = null, debugMode = false, maxTrack = 1, warmupTolerance = null, missTolerance = null, filterMinCF = null, filterBeta = null, worker = null, }) {
+        this.inputWidth = inputWidth;
+        this.inputHeight = inputHeight;
+        this.maxTrack = maxTrack;
+        this.featureManager = new FeatureManager();
+        this.featureManager.addFeature(new OneEuroFilterFeature(filterMinCF === null ? DEFAULT_FILTER_CUTOFF : filterMinCF, filterBeta === null ? DEFAULT_FILTER_BETA : filterBeta));
+        this.featureManager.addFeature(new TemporalFilterFeature(warmupTolerance === null ? DEFAULT_WARMUP_TOLERANCE : warmupTolerance, missTolerance === null ? DEFAULT_MISS_TOLERANCE : missTolerance));
+        this.featureManager.addFeature(new AutoRotationFeature());
+        // User wants "sin recortes", so we don't add CropDetectionFeature
+        this.inputLoader = new InputLoader(this.inputWidth, this.inputHeight);
+        this.onUpdate = onUpdate;
+        this.debugMode = debugMode;
+        this.worker = worker;
+        if (this.worker)
+            this._setupWorkerListener();
+        // Moonshot: Full frame detector for better sensitivity
+        this.fullDetector = new DetectorLite(this.inputWidth, this.inputHeight, {
+            useLSH: AR_CONFIG.USE_LSH,
+            maxFeaturesPerBucket: AR_CONFIG.MAX_FEATURES_PER_BUCKET
+        });
+        this.featureManager.init({
+            inputWidth: this.inputWidth,
+            inputHeight: this.inputHeight,
+            projectionTransform: [], // Will be set below
+            debugMode: this.debugMode
+        });
+        const near = AR_CONFIG.DEFAULT_NEAR;
+        const far = AR_CONFIG.DEFAULT_FAR;
+        const fovy = (AR_CONFIG.DEFAULT_FOVY * Math.PI) / 180;
+        const f = this.inputHeight / 2 / Math.tan(fovy / 2);
+        this.projectionTransform = [
+            [f, 0, this.inputWidth / 2],
+            [0, f, this.inputHeight / 2],
+            [0, 0, 1],
+        ];
+        this.featureManager.init({
+            inputWidth: this.inputWidth,
+            inputHeight: this.inputHeight,
+            projectionTransform: this.projectionTransform,
+            debugMode: this.debugMode
+        });
+        this.projectionMatrix = this._glProjectionMatrix({
+            projectionTransform: this.projectionTransform,
+            width: this.inputWidth,
+            height: this.inputHeight,
+            near: near,
+            far: far,
+        });
+    }
+    _setupWorkerListener() {
+        if (!this.worker)
+            return;
+        this.worker.onmessage = (e) => {
+            if (e.data.type === "matchDone" && this.workerMatchDone !== null) {
+                this.workerMatchDone(e.data);
+            }
+            if (e.data.type === "trackDone" && this.workerFullTrackDone !== null) {
+                this.workerFullTrackDone(e.data);
+            }
+            if (e.data.type === "trackUpdateDone" && this.workerTrackDone !== null) {
+                this.workerTrackDone(e.data);
+            }
+        };
+    }
+    _ensureWorker() {
+        if (this.worker)
+            return;
+        if (ControllerWorker && typeof Worker !== 'undefined') {
+            this.worker = new ControllerWorker();
+            this._setupWorkerListener();
+        }
+    }
+    async addImageTargets(fileURLs) {
+        const urls = Array.isArray(fileURLs) ? fileURLs : [fileURLs];
+        const buffers = await Promise.all(urls.map(async (url) => {
+            const response = await fetch(url);
+            return response.arrayBuffer();
+        }));
+        return this.addImageTargetsFromBuffers(buffers);
+    }
+    addImageTargetsFromBuffers(buffers) {
+        const allTrackingData = [];
+        const allMatchingData = [];
+        const allDimensions = [];
+        for (const buffer of buffers) {
+            const result = protocol.decodeTaar(buffer);
+            const dataList = result.dataList || [];
+            for (const item of dataList) {
+                allMatchingData.push(item.matchingData);
+                allTrackingData.push(item.trackingData);
+                allDimensions.push([item.targetImage.width, item.targetImage.height]);
+            }
+        }
+        this.tracker = new Tracker(allDimensions, allTrackingData, this.projectionTransform, this.inputWidth, this.inputHeight, this.debugMode);
+        this._ensureWorker();
+        if (this.worker) {
+            this.worker.postMessage({
+                type: "setup",
+                inputWidth: this.inputWidth,
+                inputHeight: this.inputHeight,
+                projectionTransform: this.projectionTransform,
+                debugMode: this.debugMode,
+                matchingDataList: allMatchingData,
+                trackingDataList: allTrackingData,
+                markerDimensions: allDimensions
+            });
+        }
+        this.markerDimensions = allDimensions;
+        this.matchingDataList = allMatchingData;
+        return { dimensions: allDimensions, matchingDataList: allMatchingData, trackingDataList: allTrackingData };
+    }
+    addImageTargetsFromBuffer(buffer) {
+        return this.addImageTargetsFromBuffers([buffer]);
+    }
+    dispose() {
+        this.stopProcessVideo();
+        if (this.worker) {
+            this.worker.postMessage({ type: "dispose" });
+            this.worker = null;
+        }
+    }
+    dummyRun(input) {
+        const inputData = this.inputLoader.loadInput(input);
+        this.fullDetector?.detect(inputData);
+        this.tracker.dummyRun(inputData);
+    }
+    getProjectionMatrix() {
+        return this.projectionMatrix;
+    }
+    getRotatedZ90Matrix(m) {
+        return [
+            -m[1], m[0], m[2], m[3],
+            -m[5], m[4], m[6], m[7],
+            -m[9], m[8], m[10], m[11],
+            -m[13], m[12], m[14], m[15],
+        ];
+    }
+    getWorldMatrix(modelViewTransform, targetIndex) {
+        return this._glModelViewMatrix(modelViewTransform, targetIndex);
+    }
+    async _detectAndMatch(inputData, targetIndexes) {
+        // 🚀 NANITE-STYLE: Estimate scale for filtered matching
+        // If we were already tracking a target, use its scale as a hint for faster matching
+        let predictedScale = undefined;
+        for (const state of this.trackingStates) {
+            if (state.isTracking && state.currentModelViewTransform) {
+                const m = state.currentModelViewTransform;
+                // Vector magnitude of the first column is a good approximation of the scale
+                predictedScale = Math.sqrt(m[0][0] ** 2 + m[1][0] ** 2 + m[2][0] ** 2);
+                break;
+            }
+        }
+        const { targetIndex, modelViewTransform, screenCoords, worldCoords, featurePoints } = await this._workerMatch(null, // No feature points, worker will detect from inputData
+        targetIndexes, inputData, predictedScale);
+        return { targetIndex, modelViewTransform, screenCoords, worldCoords, featurePoints };
+    }
+    async _trackAndUpdate(inputData, lastModelViewTransform, targetIndex) {
+        const { worldCoords, screenCoords, reliabilities, indices = [], octaveIndex = 0, deformedMesh } = await this._workerTrack(inputData, lastModelViewTransform, targetIndex);
+        if (!worldCoords || worldCoords.length === 0) {
+            return { modelViewTransform: null, screenCoords: [], reliabilities: [], stabilities: [], deformedMesh: null };
+        }
+        const state = this.trackingStates[targetIndex];
+        if (!state.pointStabilities)
+            state.pointStabilities = [];
+        if (!state.lastScreenCoords)
+            state.lastScreenCoords = [];
+        if (!state.pointStabilities[octaveIndex]) {
+            const numPoints = this.tracker.prebuiltData[targetIndex][octaveIndex].px.length;
+            state.pointStabilities[octaveIndex] = new Float32Array(numPoints).fill(0);
+            state.lastScreenCoords[octaveIndex] = new Array(numPoints).fill(null);
+        }
+        const stabilities = state.pointStabilities[octaveIndex];
+        const lastCoords = state.lastScreenCoords[octaveIndex];
+        // Update stability for ALL points in the current octave
+        for (let i = 0; i < stabilities.length; i++) {
+            const isCurrentlyTracked = indices.includes(i);
+            if (isCurrentlyTracked) {
+                const idxInResult = indices.indexOf(i);
+                stabilities[i] = Math.min(1.0, stabilities[i] + 0.4); // Fast attack
+                lastCoords[i] = screenCoords[idxInResult]; // Update last known position
+            }
+            else {
+                stabilities[i] = Math.max(0.0, stabilities[i] - 0.08); // Slow decay (approx 12 frames/0.2s)
+            }
+        }
+        // Collect points for the UI: both currently tracked AND hibernating
+        const finalScreenCoords = [];
+        const finalReliabilities = [];
+        const finalStabilities = [];
+        const finalWorldCoords = [];
+        for (let i = 0; i < stabilities.length; i++) {
+            if (stabilities[i] > 0) {
+                const isCurrentlyTracked = indices.includes(i);
+                finalScreenCoords.push({
+                    x: lastCoords[i].x,
+                    y: lastCoords[i].y,
+                    id: i // Unique index from tracker
+                });
+                finalStabilities.push(stabilities[i]);
+                if (isCurrentlyTracked) {
+                    const idxInResult = indices.indexOf(i);
+                    finalReliabilities.push(reliabilities[idxInResult]);
+                    finalWorldCoords.push(worldCoords[idxInResult]);
+                }
+                else {
+                    finalReliabilities.push(0); // Hibernating points have 0 reliability
+                }
+            }
+        }
+        // 🚀 WARMUP FIX: If we just started tracking (less than 15 frames), we are much more relaxed
+        const isWarmup = state.trackCount < 15;
+        const numTracked = finalWorldCoords.length;
+        const minPoints = isWarmup ? 4 : 5; // Start with 4, then require 5
+        if (numTracked < minPoints) {
+            return {
+                modelViewTransform: null,
+                screenCoords: finalScreenCoords,
+                reliabilities: finalReliabilities,
+                stabilities: finalStabilities
+            };
+        }
+        state.trackCount++;
+        const modelViewTransform = await this._workerTrackUpdate(lastModelViewTransform, {
+            worldCoords: finalWorldCoords,
+            screenCoords: finalWorldCoords.map((_, i) => {
+                const globalIdx = indices[i];
+                return lastCoords[globalIdx];
+            }),
+            stabilities: finalWorldCoords.map((_, i) => {
+                const globalIdx = indices[i];
+                return stabilities[globalIdx];
+            }),
+            deformedMesh
+        });
+        return {
+            modelViewTransform,
+            screenCoords: finalScreenCoords,
+            reliabilities: finalReliabilities,
+            stabilities: finalStabilities,
+            deformedMesh,
+            octaveIndex // Pass this up for the orchestrator
+        };
+    }
+    processVideo(input) {
+        if (this.processingVideo)
+            return;
+        this.processingVideo = true;
+        const currentLoopId = ++loopIdCounter; // Added for ghost loop prevention
+        this.trackingStates = [];
+        for (let i = 0; i < (this.markerDimensions?.length || 0); i++) {
+            this.trackingStates.push({
+                showing: false,
+                isTracking: false,
+                currentModelViewTransform: null,
+                trackCount: 0,
+                trackMiss: 0,
+            });
+        }
+        const startProcessing = async () => {
+            while (true) {
+                if (!this.processingVideo || currentLoopId !== loopIdCounter)
+                    break;
+                const inputData = this.inputLoader.loadInput(input);
+                const nTracking = this.trackingStates.reduce((acc, s) => acc + (!!s.isTracking ? 1 : 0), 0);
+                if (nTracking < this.maxTrack) {
+                    const matchingIndexes = [];
+                    for (let i = 0; i < this.trackingStates.length; i++) {
+                        const trackingState = this.trackingStates[i];
+                        if (trackingState.isTracking === true)
+                            continue;
+                        if (this.interestedTargetIndex !== -1 && this.interestedTargetIndex !== i)
+                            continue;
+                        matchingIndexes.push(i);
+                    }
+                    const { targetIndex: matchedTargetIndex, modelViewTransform, featurePoints } = await this._detectAndMatch(inputData, matchingIndexes);
+                    if (matchedTargetIndex !== -1) {
+                        this.trackingStates[matchedTargetIndex].isTracking = true;
+                        this.trackingStates[matchedTargetIndex].currentModelViewTransform = modelViewTransform;
+                    }
+                    // If we have feature points, we can store them in a special "lastSeenFeatures" 
+                    // or just pass them in processDone for general visualization
+                    this.onUpdate && this.onUpdate({ type: "featurePoints", featurePoints });
+                }
+                for (let i = 0; i < this.trackingStates.length; i++) {
+                    const trackingState = this.trackingStates[i];
+                    if (trackingState.isTracking) {
+                        const result = await this._trackAndUpdate(inputData, trackingState.currentModelViewTransform, i);
+                        if (result === null || result.modelViewTransform === null) {
+                            trackingState.isTracking = false;
+                            // Keep points for the last update so they can be shown as it "asoma"
+                            trackingState.screenCoords = result?.screenCoords || [];
+                            trackingState.reliabilities = result?.reliabilities || [];
+                            trackingState.stabilities = result?.stabilities || [];
+                        }
+                        else {
+                            trackingState.currentModelViewTransform = result.modelViewTransform;
+                            trackingState.screenCoords = result.screenCoords;
+                            trackingState.reliabilities = result.reliabilities;
+                            trackingState.stabilities = result.stabilities;
+                            trackingState.deformedMesh = result.deformedMesh;
+                        }
+                    }
+                    const wasShowing = trackingState.showing;
+                    trackingState.showing = this.featureManager.shouldShow(i, trackingState.isTracking);
+                    if (wasShowing && !trackingState.showing) {
+                        trackingState.trackingMatrix = null;
+                        this.featureManager.notifyUpdate({ type: "reset", targetIndex: i });
+                    }
+                    // Always notify update if we have points or if visibility changed
+                    if (trackingState.showing || (trackingState.screenCoords && trackingState.screenCoords.length > 0) || (wasShowing && !trackingState.showing)) {
+                        const worldMatrix = trackingState.showing ? this._glModelViewMatrix(trackingState.currentModelViewTransform, i) : null;
+                        let finalMatrix = null;
+                        if (worldMatrix) {
+                            // Calculate confidence score based on point stability
+                            const stabilities = trackingState.stabilities || [];
+                            const avgStability = stabilities.length > 0
+                                ? stabilities.reduce((a, b) => a + b, 0) / stabilities.length
+                                : 0;
+                            const filteredMatrix = this.featureManager.applyWorldMatrixFilters(i, worldMatrix, { stability: avgStability });
+                            trackingState.trackingMatrix = filteredMatrix;
+                            finalMatrix = [...filteredMatrix];
+                            const isInputRotated = input.width === this.inputHeight && input.height === this.inputWidth;
+                            if (isInputRotated) {
+                                const rotationFeature = this.featureManager.getFeature("auto-rotation");
+                                if (rotationFeature) {
+                                    finalMatrix = rotationFeature.rotate(finalMatrix);
+                                }
+                            }
+                        }
+                        this.onUpdate && this.onUpdate({
+                            type: "updateMatrix",
+                            targetIndex: i,
+                            worldMatrix: finalMatrix,
+                            modelViewTransform: trackingState.currentModelViewTransform,
+                            screenCoords: trackingState.screenCoords,
+                            reliabilities: trackingState.reliabilities,
+                            stabilities: trackingState.stabilities,
+                            deformedMesh: trackingState.deformedMesh
+                        });
+                    }
+                }
+                this.onUpdate && this.onUpdate({ type: "processDone" });
+                if (typeof requestAnimationFrame !== "undefined") {
+                    await new Promise(requestAnimationFrame);
+                }
+                else {
+                    await new Promise(resolve => setTimeout(resolve, 16));
+                }
+            }
+        };
+        startProcessing();
+    }
+    stopProcessVideo() {
+        this.processingVideo = false;
+    }
+    async detect(input) {
+        const inputData = this.inputLoader.loadInput(input);
+        const { featurePoints } = this.fullDetector.detect(inputData);
+        return { featurePoints, debugExtra: {} };
+    }
+    async match(featurePoints, targetIndex) {
+        const { targetIndex: matchedTargetIndex, modelViewTransform, screenCoords, worldCoords, debugExtra } = await this._workerMatch(featurePoints, [
+            targetIndex,
+        ]);
+        return { targetIndex: matchedTargetIndex, modelViewTransform, screenCoords, worldCoords, debugExtra };
+    }
+    async track(input, modelViewTransform, targetIndex) {
+        const inputData = this.inputLoader.loadInput(input);
+        return this.tracker.track(inputData, modelViewTransform, targetIndex);
+    }
+    async trackUpdate(modelViewTransform, trackFeatures) {
+        if (trackFeatures.worldCoords.length < 4)
+            return null;
+        return this._workerTrackUpdate(modelViewTransform, trackFeatures);
+    }
+    _workerMatch(featurePoints, targetIndexes, inputData = null, expectedScale) {
+        return new Promise((resolve) => {
+            if (!this.worker) {
+                // If no feature points but we have input data, detect first
+                let fpPromise;
+                if (!featurePoints && inputData) {
+                    fpPromise = Promise.resolve(this.fullDetector.detect(inputData).featurePoints);
+                }
+                else {
+                    fpPromise = Promise.resolve(featurePoints);
+                }
+                fpPromise.then(fp => {
+                    this._matchOnMainThread(fp, targetIndexes, expectedScale).then(resolve);
+                }).catch(() => resolve({ targetIndex: -1 }));
+                return;
+            }
+            const timeout = setTimeout(() => {
+                this.workerMatchDone = null;
+                resolve({ targetIndex: -1 });
+            }, WORKER_TIMEOUT_MS);
+            this.workerMatchDone = (data) => {
+                clearTimeout(timeout);
+                this.workerMatchDone = null;
+                resolve({
+                    targetIndex: data.targetIndex,
+                    modelViewTransform: data.modelViewTransform,
+                    screenCoords: data.screenCoords,
+                    worldCoords: data.worldCoords,
+                    featurePoints: data.featurePoints,
+                    debugExtra: data.debugExtra,
+                });
+            };
+            if (inputData) {
+                this.worker.postMessage({ type: "match", inputData, targetIndexes, expectedScale });
+            }
+            else {
+                this.worker.postMessage({ type: "match", featurePoints: featurePoints, targetIndexes, expectedScale });
+            }
+        });
+    }
+    _workerTrack(inputData, lastModelViewTransform, targetIndex) {
+        return new Promise((resolve) => {
+            if (!this.worker) {
+                resolve(this.tracker.track(inputData, lastModelViewTransform, targetIndex));
+                return;
+            }
+            const timeout = setTimeout(() => {
+                this.workerFullTrackDone = null;
+                resolve({ worldCoords: [], screenCoords: [], reliabilities: [] });
+            }, WORKER_TIMEOUT_MS);
+            this.workerFullTrackDone = (data) => {
+                clearTimeout(timeout);
+                this.workerFullTrackDone = null;
+                resolve(data);
+            };
+            this.worker.postMessage({
+                type: "track",
+                inputData,
+                lastModelViewTransform,
+                targetIndex
+            });
+        });
+    }
+    async _matchOnMainThread(featurePoints, targetIndexes, expectedScale) {
+        if (!this.mainThreadMatcher) {
+            const { Matcher } = await import("../core/matching/matcher.js");
+            const { Estimator } = await import("../core/estimation/estimator.js");
+            this.mainThreadMatcher = new Matcher(this.inputWidth, this.inputHeight, this.debugMode);
+            this.mainThreadEstimator = new Estimator(this.projectionTransform);
+        }
+        let matchedTargetIndex = -1;
+        let matchedModelViewTransform = null;
+        let matchedScreenCoords = null;
+        let matchedWorldCoords = null;
+        let matchedDebugExtra = null;
+        for (let i = 0; i < targetIndexes.length; i++) {
+            const matchingIndex = targetIndexes[i];
+            const { keyframeIndex, screenCoords, worldCoords, debugExtra } = this.mainThreadMatcher.matchDetection(this.matchingDataList[matchingIndex], featurePoints, expectedScale);
+            matchedDebugExtra = debugExtra;
+            if (keyframeIndex !== -1) {
+                const modelViewTransform = this.mainThreadEstimator.estimate({ screenCoords, worldCoords });
+                if (modelViewTransform) {
+                    matchedTargetIndex = matchingIndex;
+                    matchedModelViewTransform = modelViewTransform;
+                    matchedScreenCoords = screenCoords;
+                    matchedWorldCoords = worldCoords;
+                }
+                break;
+            }
+        }
+        return {
+            targetIndex: matchedTargetIndex,
+            modelViewTransform: matchedModelViewTransform,
+            screenCoords: matchedScreenCoords,
+            worldCoords: matchedWorldCoords,
+            debugExtra: matchedDebugExtra,
+        };
+    }
+    _workerTrackUpdate(modelViewTransform, trackingFeatures) {
+        return new Promise((resolve) => {
+            if (!this.worker) {
+                this._trackUpdateOnMainThread(modelViewTransform, trackingFeatures).then(resolve).catch(() => resolve(null));
+                return;
+            }
+            const timeout = setTimeout(() => {
+                this.workerTrackDone = null;
+                resolve(null);
+            }, WORKER_TIMEOUT_MS);
+            this.workerTrackDone = (data) => {
+                clearTimeout(timeout);
+                this.workerTrackDone = null;
+                resolve(data.modelViewTransform);
+            };
+            const { worldCoords, screenCoords, stabilities } = trackingFeatures;
+            this.worker.postMessage({
+                type: "trackUpdate",
+                modelViewTransform,
+                worldCoords,
+                screenCoords,
+                stabilities
+            });
+        });
+    }
+    async _trackUpdateOnMainThread(modelViewTransform, trackingFeatures) {
+        if (!this.mainThreadEstimator) {
+            const { Estimator } = await import("../core/estimation/estimator.js");
+            this.mainThreadEstimator = new Estimator(this.projectionTransform);
+        }
+        const { worldCoords, screenCoords, stabilities } = trackingFeatures;
+        return this.mainThreadEstimator.refineEstimate({
+            initialModelViewTransform: modelViewTransform,
+            worldCoords,
+            screenCoords,
+            stabilities
+        });
+    }
+    _glModelViewMatrix(modelViewTransform, targetIndex) {
+        // Transformation to map Computer Vision coordinates (Y-down, Z-forward) 
+        // to OpenGL coordinates (Y-up, Z-backward). 
+        // We negate the 2nd and 3rd rows of the pose matrix.
+        return [
+            modelViewTransform[0][0], -modelViewTransform[1][0], -modelViewTransform[2][0], 0,
+            modelViewTransform[0][1], -modelViewTransform[1][1], -modelViewTransform[2][1], 0,
+            modelViewTransform[0][2], -modelViewTransform[1][2], -modelViewTransform[2][2], 0,
+            modelViewTransform[0][3], -modelViewTransform[1][3], -modelViewTransform[2][3], 1,
+        ];
+    }
+    _glProjectionMatrix({ projectionTransform, width, height, near, far }) {
+        const proj = [
+            [(2 * projectionTransform[0][0]) / width, 0, -((2 * projectionTransform[0][2]) / width - 1), 0],
+            [0, (2 * projectionTransform[1][1]) / height, -((2 * projectionTransform[1][2]) / height - 1), 0],
+            [0, 0, -(far + near) / (far - near), (-2 * far * near) / (far - near)],
+            [0, 0, -1, 0],
+        ];
+        const projMatrix = [];
+        for (let i = 0; i < 4; i++) {
+            for (let j = 0; j < 4; j++) {
+                projMatrix.push(proj[j][i]);
+            }
+        }
+        return projMatrix;
+    }
+}
+export { Controller };

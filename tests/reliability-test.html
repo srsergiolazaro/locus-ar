@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TapTapp AR - Reliability & Simulation Test</title>
+    <title>LOCUS AR - Reliability & Simulation Test</title>
     <style>
         body {
             margin: 0;
@@ -15,6 +16,7 @@
             flex-direction: column;
             align-items: center;
         }
+
         .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -22,15 +24,23 @@
             max-width: 1320px;
             width: 100%;
         }
+
         .card {
             background: #16161a;
             border: 1px solid #2a2a30;
             border-radius: 12px;
             padding: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
         }
-        h2 { margin-top: 0; font-size: 1.2rem; color: #4f46e5; }
-        canvas, .view-container {
+
+        h2 {
+            margin-top: 0;
+            font-size: 1.2rem;
+            color: #4f46e5;
+        }
+
+        canvas,
+        .view-container {
             width: 100%;
             height: auto;
             aspect-ratio: 4/3;
@@ -40,6 +50,7 @@
             position: relative;
             overflow: hidden;
         }
+
         #logs {
             grid-column: span 2;
             height: 250px;
@@ -53,16 +64,27 @@
             white-space: pre-wrap;
             color: #10b981;
         }
+
         .stats {
             margin-top: 10px;
             display: flex;
             gap: 20px;
             font-size: 0.9rem;
         }
-        .stat-item { display: flex; gap: 8px; }
-        .stat-label { color: #888; }
-        .stat-value { font-weight: bold; }
-        
+
+        .stat-item {
+            display: flex;
+            gap: 8px;
+        }
+
+        .stat-label {
+            color: #888;
+        }
+
+        .stat-value {
+            font-weight: bold;
+        }
+
         #overlay {
             position: absolute;
             top: 0;
@@ -76,6 +98,7 @@
             box-sizing: border-box;
             z-index: 10;
         }
+
         .status-tag {
             padding: 2px 8px;
             border-radius: 4px;
@@ -83,12 +106,23 @@
             text-transform: uppercase;
             font-weight: bold;
         }
-        .status-tracking { background: #065f46; color: #34d399; }
-        .status-searching { background: #7c2d12; color: #fb923c; }
+
+        .status-tracking {
+            background: #065f46;
+            color: #34d399;
+        }
+
+        .status-searching {
+            background: #7c2d12;
+            color: #fb923c;
+        }
     </style>
 </head>
+
 <body>
-    <h1 style="margin-bottom: 30px; background: linear-gradient(90deg, #4f46e5, #9333ea); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">AR Reliability Simulation</h1>
+    <h1
+        style="margin-bottom: 30px; background: linear-gradient(90deg, #4f46e5, #9333ea); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+        www.experiencialocus.com</h1>
 
     <div class="grid">
         <div class="card">
@@ -134,4 +168,5 @@
 
     <script type="module" src="./reliability-test-app.ts"></script>
 </body>
+
 </html>

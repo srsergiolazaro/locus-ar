@@ -1,4 +1,4 @@
-# 📐 Arquitectura de TapTapp AR - Análisis Completo
+# 📐 Arquitectura de LOCUS - Análisis Completo
 
 > **Versión**: Protocol V11 (Nanite)  
 > **Última actualización**: Enero 2026  
@@ -22,7 +22,7 @@
 
 ## 🎯 Resumen Ejecutivo
 
-TapTapp AR es un SDK de realidad aumentada basado en **Image Tracking** (Natural Feature Tracking) implementado 100% en JavaScript puro. La arquitectura actual está diseñada para ser **independiente de TensorFlow.js**, lo que elimina la latencia de inicialización y reduce el tamaño del bundle de ~20MB a <100KB.
+LOCUS es un SDK de realidad aumentada basado en **Image Tracking** (Natural Feature Tracking) implementado 100% en JavaScript puro. La arquitectura actual está diseñada para ser **independiente de TensorFlow.js**, lo que elimina la latencia de inicialización y reduce el tamaño del bundle de ~20MB a <100KB.
 
 ### Fortalezas Actuales
 - ⚡ **Compilación ultra-rápida**: ~0.93s vs ~23.5s de MindAR
@@ -97,7 +97,7 @@ TapTapp AR es un SDK de realidad aumentada basado en **Image Tracking** (Natural
                     │ ┌───────────────────────────┐ │
                     │ │ Reactive Abstraction:     │ │
                     │ │ - useAR (React Hook)      │ │
-                    │ │ - TaptappAR (React Comp)  │ │
+                    │ │ - LOCUS (React Comp)  │ │
                     │ └───────────────────────────┘ │
                     └──────────────┬────────────────┘
                                    │
