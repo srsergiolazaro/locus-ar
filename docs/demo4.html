@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>LOCUS AR - Multi-Target TTS | Demo 4</title>
+    <meta name="description"
+        content="Demo interactiva de tracking múltiple con Text-to-Speech (TTS).">
+    <link rel="icon" type="image/png" href="logo.png">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --locus-primary: #6366f1;
+            --locus-primary-dark: #4f46e5;
+            --locus-accent: #ec4899; /* Pink accent for Demo 4 */
+            --locus-success: #10b981;
+            --locus-dark: #0f172a;
+            --locus-darker: #020617;
+            --locus-gray: #64748b;
+            --gradient-primary: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--locus-darker);
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .nav-bar {
+            width: 100%;
+            padding: 1.2rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 100;
+        }
+
+        .back-link {
+            color: var(--locus-gray);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .back-link:hover {
+            color: #fff;
+        }
+
+        .main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+            padding-bottom: 120px;
+        }
+
+        .setup-container {
+            width: 100%;
+            max-width: 800px;
+            background: #16161a;
+            border: 1px solid #2a2a30;
+            border-radius: 20px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .target-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .target-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .target-preview {
+            width: 80px;
+            height: 80px;
+            background: #000;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 1px solid #333;
+        }
+
+        .target-inputs {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .target-inputs input[type="text"] {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: 'Inter', sans-serif;
+            width: 100%;
+        }
+        
+        .file-label {
+            display: inline-block;
+            cursor: pointer;
+            color: var(--locus-primary);
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .remove-btn {
+             background: transparent;
+             border: 1px solid #ef4444;
+             color: #ef4444;
+             padding: 4px 8px;
+             border-radius: 6px;
+             cursor: pointer;
+             font-size: 0.8rem;
+        }
+
+        .video-container {
+            width: 100%;
+            max-width: 640px;
+            aspect-ratio: 4 / 3;
+            background: #000;
+            border-radius: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            display: none; /* Hidden initially */
+        }
+
+        video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            pointer-events: none;
+        }
+        
+        #arCanvas { display: none; }
+        #debugCanvas { z-index: 4; }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 0.9rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(236, 72, 153, 0.4);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+        
+        .btn-add {
+            width: 100%;
+            border: 2px dashed rgba(255, 255, 255, 0.1);
+            background: transparent;
+            color: var(--locus-gray);
+            margin-bottom: 1rem;
+        }
+        
+        .btn-add:hover {
+            border-color: var(--locus-primary);
+            color: var(--locus-primary);
+        }
+
+        .status-overlay {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: rgba(0,0,0,0.7);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: #fff;
+            z-index: 10;
+        }
+        
+        .detected-msg {
+            position: absolute;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(16, 185, 129, 0.9);
+            color: #fff;
+            padding: 0.75rem 1.5rem;
+            border-radius: 30px;
+            font-weight: 700;
+            z-index: 20;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .detected-msg.visible {
+            opacity: 1;
+        }
+
+    </style>
+</head>
+
+<body>
+    <nav class="nav-bar">
+        <a href="index.html" class="back-link">← Volver</a>
+        <div style="font-weight: 800; letter-spacing: 2px; color: var(--locus-accent);">DEMO 4 TTS</div>
+        <div style="width: 60px;"></div>
+    </nav>
+
+    <main class="main-container">
+        
+        <div class="setup-container" id="setup-panel">
+            <h2>Configurar Targets (Multi-TTS)</h2>
+            <p style="color: var(--locus-gray); margin-bottom: 1.5rem;">Captura múltiples objetos con la cámara y asigna un texto a cada uno.</p>
+            
+            <!-- Capture Preview Area -->
+            <div class="video-container" id="capture-video-container" style="display: block; margin-bottom: 1rem;">
+                <video id="capture-video" autoplay playsinline muted></video>
+            </div>
+            
+            <div style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 2rem;">
+                 <button class="btn btn-primary btn-pulse" id="btnCaptureTarget">📸 Capturar Target</button>
+            </div>
+
+            <h3>Targets Listos:</h3>
+            <div class="target-list" id="targetList">
+                <!-- Targets will be added here -->
+                <div id="empty-msg" style="color: #666; font-style: italic; text-align: center; padding: 1rem;">No hay targets capturados aún.</div>
+            </div>
+            
+            <div style="text-align: right; margin-top: 1rem; border-top: 1px solid #333; padding-top: 1rem;">
+                 <button class="btn btn-primary" id="btnStart" disabled>🚀 Iniciar Experiencia AR</button>
+            </div>
+        </div>
+
+        <div class="video-container" id="ar-container">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="arCanvas"></canvas>
+            <canvas id="debugCanvas"></canvas>
+            <div class="status-overlay" id="statusLog">Esperando...</div>
+            <div class="detected-msg" id="detectedMsg">Detectado!</div>
+        </div>
+        
+        <div style="margin-top: 1rem; display: none;" id="controls-panel">
+             <button class="btn btn-secondary" id="btnStop">⏹️ Detener / Configurar</button>
+        </div>
+
+    </main>
+    
+    <!-- Text Input Modal -->
+    <div id="text-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 200; align-items: center; justify-content: center;">
+        <div style="background: #16161a; padding: 2rem; border-radius: 20px; border: 1px solid var(--locus-accent); width: 90%; max-width: 400px; text-align: center;">
+            <h3 style="margin-bottom: 1rem;">Asignar Texto</h3>
+            <img id="modal-preview" style="width: 100%; height: 200px; object-fit: cover; border-radius: 10px; margin-bottom: 1rem; border: 1px solid #333;">
+            <input type="text" id="modal-input" placeholder="Escribe lo que dirá el TTS..." style="width: 100%; padding: 10px; margin-bottom: 1.5rem; border-radius: 8px; border: 1px solid #444; background: #000; color: white;">
+            <div style="display: flex; gap: 1rem; justify-content: center;">
+                <button class="btn btn-secondary" id="modal-cancel">Cancelar</button>
+                <button class="btn btn-primary" id="modal-save">Guardar Target</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./demo4-app.js"></script>
+</body>
+
+</html>

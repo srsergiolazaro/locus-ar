@@ -4046,7 +4046,7 @@ ${indentData}`);
         const newMatrix = new Matrix4(matrix2);
         return newMatrix.fround();
       };
-      AbstractMatrix3.prototype.log = function log2() {
+      AbstractMatrix3.prototype.log = function log() {
         for (let i = 0; i < this.rows; i++) {
           for (let j = 0; j < this.columns; j++) {
             this.set(i, j, Math.log(this.get(i, j)));
@@ -4054,7 +4054,7 @@ ${indentData}`);
         }
         return this;
       };
-      AbstractMatrix3.log = function log2(matrix2) {
+      AbstractMatrix3.log = function log(matrix2) {
         const newMatrix = new Matrix4(matrix2);
         return newMatrix.log();
       };
@@ -10058,7 +10058,7 @@ var loopIdCounter = 0;
 var Controller = class {
   inputWidth;
   inputHeight;
-  maxTrack;
+  maxTrack = 1;
   inputLoader;
   markerDimensions = null;
   onUpdate;
@@ -10083,7 +10083,7 @@ var Controller = class {
     inputHeight,
     onUpdate = null,
     debugMode: debugMode2 = false,
-    maxTrack = 1,
+    maxTrack,
     warmupTolerance = null,
     missTolerance = null,
     filterMinCF = null,
@@ -10092,7 +10092,9 @@ var Controller = class {
   }) {
     this.inputWidth = inputWidth;
     this.inputHeight = inputHeight;
-    this.maxTrack = maxTrack;
+    if (maxTrack !== void 0) {
+      this.maxTrack = maxTrack;
+    }
     this.featureManager = new FeatureManager();
     this.featureManager.addFeature(new OneEuroFilterFeature(
       filterMinCF === null ? DEFAULT_FILTER_CUTOFF : filterMinCF,
@@ -10209,6 +10211,7 @@ var Controller = class {
     }
     this.markerDimensions = allDimensions;
     this.matchingDataList = allMatchingData;
+    this.maxTrack = allDimensions.length;
     return { dimensions: allDimensions, matchingDataList: allMatchingData, trackingDataList: allTrackingData };
   }
   addImageTargetsFromBuffer(buffer) {
@@ -10943,12 +10946,12 @@ var SaccadicController = class {
    * @returns {SaccadeTarget[]} Priority-ordered list of targets
    */
   computeTargets(saliency, currentFovea, trackingState = null) {
-    const targets = [];
+    const targets2 = [];
     const maxTargets = this.config.MAX_SACCADES_PER_FRAME;
     if (trackingState && trackingState.isTracking) {
       const predicted = this._predictTrackingCenter(trackingState);
       if (predicted) {
-        targets.push({
+        targets2.push({
           x: predicted.x,
           y: predicted.y,
           priority: 0,
@@ -10959,33 +10962,33 @@ var SaccadicController = class {
     }
     if (saliency && saliency.peaks) {
       for (const peak of saliency.peaks) {
-        if (targets.length >= maxTargets) break;
-        if (this._isInhibited(peak.x, peak.y, targets)) continue;
+        if (targets2.length >= maxTargets) break;
+        if (this._isInhibited(peak.x, peak.y, targets2)) continue;
         if (peak.value > this.config.SALIENCY_THRESHOLD) {
-          targets.push({
+          targets2.push({
             x: peak.x,
             y: peak.y,
-            priority: targets.length,
+            priority: targets2.length,
             reason: "saliency_peak",
             saliency: peak.value
           });
         }
       }
     }
-    if (!trackingState?.isTracking && targets.length < maxTargets) {
+    if (!trackingState?.isTracking && targets2.length < maxTargets) {
       const gridTarget = this._getNextGridCell();
-      if (gridTarget && !this._isInhibited(gridTarget.x, gridTarget.y, targets)) {
-        targets.push({
+      if (gridTarget && !this._isInhibited(gridTarget.x, gridTarget.y, targets2)) {
+        targets2.push({
           x: gridTarget.x,
           y: gridTarget.y,
-          priority: targets.length,
+          priority: targets2.length,
           reason: "grid_search",
           saliency: 0.5
         });
       }
     }
-    if (targets.length === 0) {
-      targets.push({
+    if (targets2.length === 0) {
+      targets2.push({
         x: currentFovea.x,
         y: currentFovea.y,
         priority: 0,
@@ -10993,8 +10996,8 @@ var SaccadicController = class {
         saliency: 0.3
       });
     }
-    this._updateHistory(targets);
-    return targets;
+    this._updateHistory(targets2);
+    return targets2;
   }
   /**
    * Predict center of tracking based on current state and velocity
@@ -11065,20 +11068,20 @@ var SaccadicController = class {
    * Update history with new targets
    * @private
    */
-  _updateHistory(targets) {
-    this.recentTargets.push(...targets);
+  _updateHistory(targets2) {
+    this.recentTargets.push(...targets2);
     const maxHistory = this.config.MOTION_HISTORY_FRAMES * this.config.MAX_SACCADES_PER_FRAME;
     while (this.recentTargets.length > maxHistory) {
       this.recentTargets.shift();
     }
-    if (targets.length > 0) {
-      this.velocityHistory.push({ x: targets[0].x, y: targets[0].y });
+    if (targets2.length > 0) {
+      this.velocityHistory.push({ x: targets2[0].x, y: targets2[0].y });
       while (this.velocityHistory.length > this.config.MOTION_HISTORY_FRAMES) {
         this.velocityHistory.shift();
       }
-      this.lastCenter = { x: targets[0].x, y: targets[0].y };
+      this.lastCenter = { x: targets2[0].x, y: targets2[0].y };
     }
-    this.saccadeCount += targets.length;
+    this.saccadeCount += targets2.length;
     this.lastSaccadeTime = Date.now();
   }
   /**
@@ -11888,17 +11891,17 @@ var BioInspiredController = class extends Controller {
     const startProcessing = async () => {
       while (this.processingVideo) {
         const inputData = this.inputLoader.loadInput(input);
-        const activeTracking = this.trackingStates.find((s) => s.isTracking);
-        const trackingState = activeTracking ? {
+        const activeTrackings = this.trackingStates.filter((s) => s.isTracking);
+        const trackingState = activeTrackings.length === 1 ? {
           isTracking: true,
-          activeOctave: activeTracking.lastOctaveIndex,
+          activeOctave: activeTrackings[0].lastOctaveIndex,
           // Tracked octave index
-          worldMatrix: activeTracking.currentModelViewTransform ? this._flattenMatrix(activeTracking.currentModelViewTransform) : null
+          worldMatrix: activeTrackings[0].currentModelViewTransform ? this._flattenMatrix(activeTrackings[0].currentModelViewTransform) : null
         } : null;
         const bioResult = this.bioEngine.process(inputData, trackingState || void 0);
         this.lastBioResult = bioResult;
-        if (bioResult.skipped && activeTracking?.isTracking) {
-          this._handleSkippedFrame(activeTracking, bioResult);
+        if (bioResult.skipped && activeTrackings.length > 0) {
+          this._handleSkippedFrame(activeTrackings, bioResult);
         } else {
           await this._processWithAttention(input, inputData, bioResult);
         }
@@ -11915,18 +11918,24 @@ var BioInspiredController = class extends Controller {
    * Handle a skipped frame using prediction
    * @private
    */
-  _handleSkippedFrame(trackingState, bioResult) {
-    if (bioResult.prediction && bioResult.prediction.worldMatrix) {
-      trackingState.currentModelViewTransform = this._unflattenMatrix(bioResult.prediction.worldMatrix);
+  _handleSkippedFrame(trackingStates, bioResult) {
+    const hasPrediction = bioResult.prediction && bioResult.prediction.worldMatrix;
+    for (const state of trackingStates) {
+      if (hasPrediction && trackingStates.length === 1) {
+        state.currentModelViewTransform = this._unflattenMatrix(bioResult.prediction.worldMatrix);
+      }
+      const targetIndex = this.trackingStates.indexOf(state);
+      if (targetIndex !== -1) {
+        const worldMatrix = state.currentModelViewTransform ? this._glModelViewMatrix(state.currentModelViewTransform, targetIndex) : null;
+        this.onUpdate?.({
+          type: "updateMatrix",
+          targetIndex,
+          worldMatrix: worldMatrix ? this.featureManager.applyWorldMatrixFilters(targetIndex, worldMatrix, { stability: 0.9 }) : null,
+          skipped: true,
+          bioMetrics: this.bioEngine?.getMetrics()
+        });
+      }
     }
-    const worldMatrix = trackingState.currentModelViewTransform ? this._glModelViewMatrix(trackingState.currentModelViewTransform, 0) : null;
-    this.onUpdate?.({
-      type: "updateMatrix",
-      targetIndex: 0,
-      worldMatrix: worldMatrix ? this.featureManager.applyWorldMatrixFilters(0, worldMatrix, { stability: 0.9 }) : null,
-      skipped: true,
-      bioMetrics: this.bioEngine?.getMetrics()
-    });
     this.onUpdate?.({ type: "processDone" });
   }
   /**
@@ -12829,83 +12838,333 @@ var OfflineCompiler = class {
   }
 };
 
-// src/core/utils/projection.js
-function projectToScreen(x, y, z, mVT, proj, videoW, videoH, containerRect, needsRotation = false) {
-  const tx = mVT[0][0] * x + mVT[0][1] * y + mVT[0][2] * z + mVT[0][3];
-  const ty = mVT[1][0] * x + mVT[1][1] * y + mVT[1][2] * z + mVT[1][3];
-  const tz = mVT[2][0] * x + mVT[2][1] * y + mVT[2][2] * z + mVT[2][3];
-  const bx = proj[0][0] * tx / tz + proj[0][2];
-  const by = proj[1][1] * ty / tz + proj[1][2];
-  const vW = needsRotation ? videoH : videoW;
-  const vH = needsRotation ? videoW : videoH;
-  const perspectiveScale = Math.max(containerRect.width / vW, containerRect.height / vH);
-  const displayW = vW * perspectiveScale;
-  const displayH = vH * perspectiveScale;
-  const offsetX = (containerRect.width - displayW) / 2;
-  const offsetY = (containerRect.height - displayH) / 2;
-  let sx, sy;
-  if (needsRotation) {
-    sx = offsetX + displayW / 2 - (by - proj[1][2]) * perspectiveScale;
-    sy = offsetY + displayH / 2 + (bx - proj[0][2]) * perspectiveScale;
-  } else {
-    sx = offsetX + displayW / 2 + (bx - proj[0][2]) * perspectiveScale;
-    sy = offsetY + displayH / 2 + (by - proj[1][2]) * perspectiveScale;
-  }
-  return { sx, sy };
-}
-
-// tests/demo2-app.ts
+// tests/demo4-app.ts
 init_constants();
-console.log("[AR] Script demo2-app.ts iniciado");
-var WIDTH = AR_CONFIG.VIEWPORT_WIDTH;
-var HEIGHT = AR_CONFIG.VIEWPORT_HEIGHT;
+var setupPanel = document.getElementById("setup-panel");
+var arContainer = document.getElementById("ar-container");
+var captureVideoContainer = document.getElementById("capture-video-container");
+var captureVideo = document.getElementById("capture-video");
+var targetList = document.getElementById("targetList");
+var btnCaptureTarget = document.getElementById("btnCaptureTarget");
+var btnStart = document.getElementById("btnStart");
+var btnStop = document.getElementById("btnStop");
+var controlsPanel = document.getElementById("controls-panel");
+var statusLog = document.getElementById("statusLog");
+var detectedMsg = document.getElementById("detectedMsg");
 var video = document.getElementById("video");
 var arCanvas = document.getElementById("arCanvas");
 var debugCanvas = document.getElementById("debugCanvas");
-var arCtx = arCanvas.getContext("2d");
 var debugCtx = debugCanvas.getContext("2d");
-var btnCapture = document.getElementById("btn-capture");
-var btnReset = document.getElementById("btn-reset");
-var scanLine = document.getElementById("scan-line");
-var overlayImg = document.getElementById("overlay-img");
-var capturePreview = document.getElementById("capture-preview");
-var arContainer = document.getElementById("ar-container");
-var ttsInput = document.getElementById("tts-input");
+var arCtx = arCanvas.getContext("2d");
+var emptyMsg = document.getElementById("empty-msg");
+var textModal = document.getElementById("text-modal");
+var modalPreview = document.getElementById("modal-preview");
+var modalInput = document.getElementById("modal-input");
+var modalSave = document.getElementById("modal-save");
+var modalCancel = document.getElementById("modal-cancel");
+var targets = [];
+var controller = null;
+var isRunning = false;
 var lastSpokenText = "";
 var lastSpeakTime = 0;
-var lastDetectedTime = null;
-var currentDetectedText = null;
-var stats = null;
+var targetDetectionTimes = {};
+var targetLastSpokenText = {};
+var targetLastSeenTime = {};
+var targetLastScreenCoords = {};
+var LOST_GRACE_PERIOD = 300;
+var tempCaptureData = null;
+var tempCaptureUrl = null;
+var WIDTH = AR_CONFIG.VIEWPORT_WIDTH;
+var HEIGHT = AR_CONFIG.VIEWPORT_HEIGHT;
 arCanvas.width = WIDTH;
 arCanvas.height = HEIGHT;
-var controller = null;
-var captureCanvas = null;
-var isTesting = false;
-function log(msg) {
-  console.log(`[AR LOG] ${msg}`);
-}
-var instructionText = document.getElementById("instruction-text");
-video.onloadedmetadata = () => {
-  log(`C\xE1mara: ${video.videoWidth}x${video.videoHeight}`);
-  const dpr = window.devicePixelRatio || 1;
-  const rect = arContainer.getBoundingClientRect();
-  debugCanvas.width = rect.width * dpr;
-  debugCanvas.height = rect.height * dpr;
-  btnCapture.style.display = "block";
-  btnCapture.classList.add("btn-pulse");
-  scanLine.style.display = "block";
-  instructionText.textContent = 'Paso 1: Enmarca el objeto y haz clic en "Capturar"';
-};
-async function startCamera() {
+async function initSetupCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } }
+      video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
     });
-    video.srcObject = stream;
-    log("C\xE1mara iniciada correctamente.");
+    captureVideo.srcObject = stream;
   } catch (err) {
-    log("Error al acceder a la c\xE1mara: " + err);
+    console.error("Camera error:", err);
+    alert("Error accediendo a la c\xE1mara. Aseg\xFArate de dar permisos.");
   }
+}
+initSetupCamera();
+loadTargets();
+btnCaptureTarget.addEventListener("click", () => {
+  const cvs = document.createElement("canvas");
+  cvs.width = WIDTH;
+  cvs.height = HEIGHT;
+  const ctx = cvs.getContext("2d");
+  drawVideoToCanvas(ctx, captureVideo, WIDTH, HEIGHT);
+  tempCaptureData = ctx.getImageData(0, 0, WIDTH, HEIGHT);
+  tempCaptureUrl = cvs.toDataURL("image/jpeg", 0.8);
+  modalPreview.src = tempCaptureUrl;
+  modalInput.value = "";
+  textModal.style.display = "flex";
+  modalInput.focus();
+});
+modalCancel.addEventListener("click", () => {
+  textModal.style.display = "none";
+  tempCaptureData = null;
+  tempCaptureUrl = null;
+});
+modalSave.addEventListener("click", () => {
+  const text = modalInput.value.trim();
+  if (!text) {
+    alert("Por favor escribe un texto para el TTS.");
+    return;
+  }
+  if (tempCaptureData && tempCaptureUrl) {
+    addTarget(tempCaptureData, tempCaptureUrl, text);
+    textModal.style.display = "none";
+    tempCaptureData = null;
+    tempCaptureUrl = null;
+  }
+});
+function addTarget(imageData, dataUrl, text, shouldSave = true) {
+  emptyMsg.style.display = "none";
+  btnStart.disabled = false;
+  const id = Date.now().toString() + Math.random().toString().slice(2);
+  const div = document.createElement("div");
+  div.className = "target-item";
+  div.innerHTML = `
+        <img class="target-preview" src="${dataUrl}">
+        <div class="target-inputs">
+            <div style="font-weight: bold; color: white;">Target #${targets.length + 1}</div>
+            <div style="color: var(--locus-gray); font-size: 0.9rem;">TTS: "${text}"</div>
+        </div>
+        <button class="remove-btn" data-id="${id}">\u{1F5D1}\uFE0F</button>
+    `;
+  targetList.appendChild(div);
+  const item = {
+    id,
+    imageData,
+    dataUrl,
+    text,
+    element: div
+  };
+  targets.push(item);
+  if (shouldSave) {
+    saveTargets();
+  }
+  div.querySelector(".remove-btn")?.addEventListener("click", () => {
+    const idx = targets.findIndex((t) => t.id === id);
+    if (idx > -1) {
+      targets.splice(idx, 1);
+      div.remove();
+      if (targets.length === 0) {
+        emptyMsg.style.display = "block";
+        btnStart.disabled = true;
+      }
+      saveTargets();
+    }
+  });
+}
+function saveTargets() {
+  const data = targets.map((t) => ({
+    dataUrl: t.dataUrl,
+    text: t.text
+  }));
+  localStorage.setItem("taptapp_demo4_targets", JSON.stringify(data));
+}
+async function loadTargets() {
+  const json = localStorage.getItem("taptapp_demo4_targets");
+  if (!json) return;
+  try {
+    const stored = JSON.parse(json);
+    if (!Array.isArray(stored)) return;
+    for (const item of stored) {
+      if (item.dataUrl && item.text) {
+        const img = new Image();
+        img.src = item.dataUrl;
+        await new Promise((resolve) => {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        });
+        const cvs = document.createElement("canvas");
+        cvs.width = img.width;
+        cvs.height = img.height;
+        const ctx = cvs.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0);
+          const imageData = ctx.getImageData(0, 0, img.width, img.height);
+          addTarget(imageData, item.dataUrl, item.text, false);
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error loading targets", e);
+  }
+}
+btnStart.addEventListener("click", async () => {
+  if (targets.length === 0) return;
+  btnStart.disabled = true;
+  btnStart.textContent = "\u23F3 Compilando...";
+  const stream = captureVideo.srcObject;
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  try {
+    await startExperience(targets);
+  } catch (err) {
+    console.error(err);
+    alert("Error al iniciar: " + err);
+    btnStart.disabled = false;
+    btnStart.textContent = "\u{1F680} Iniciar Experiencia AR";
+    initSetupCamera();
+  }
+});
+btnStop.addEventListener("click", () => {
+  stopExperience();
+});
+async function startExperience(validTargets) {
+  const compiler = new OfflineCompiler();
+  const imagesToCompile = [];
+  const texts = [];
+  for (const t of validTargets) {
+    imagesToCompile.push({
+      data: new Uint8Array(t.imageData.data.buffer),
+      width: t.imageData.width,
+      height: t.imageData.height
+    });
+    texts.push(t.text);
+  }
+  const compiledDataList = await compiler.compileImageTargets(imagesToCompile, (p) => {
+    btnStart.textContent = `\u23F3 Compilando ${Math.round(p)}%...`;
+  });
+  const buffer = compiler.exportData();
+  const cleanBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+  controller = new BioInspiredController({
+    inputWidth: WIDTH,
+    inputHeight: HEIGHT,
+    debugMode: true,
+    maxTrack: 5,
+    bioInspired: { enabled: true },
+    onUpdate: (data) => handleARUpdate(data, texts)
+  });
+  await controller.addImageTargetsFromBuffer(cleanBuffer);
+  await startCamera();
+  setupPanel.style.display = "none";
+  arContainer.style.display = "block";
+  controlsPanel.style.display = "block";
+  captureVideoContainer.style.display = "none";
+  const rect = arContainer.getBoundingClientRect();
+  debugCanvas.width = rect.width;
+  debugCanvas.height = rect.height;
+  isRunning = true;
+  startLoop();
+}
+function stopExperience() {
+  isRunning = false;
+  if (controller) {
+    controller = null;
+  }
+  const stream = video.srcObject;
+  if (stream) {
+    stream.getTracks().forEach((t) => t.stop());
+  }
+  video.srcObject = null;
+  arContainer.style.display = "none";
+  controlsPanel.style.display = "none";
+  setupPanel.style.display = "block";
+  captureVideoContainer.style.display = "block";
+  btnStart.disabled = false;
+  btnStart.textContent = "\u{1F680} Iniciar Experiencia AR";
+  initSetupCamera();
+}
+async function startCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+  });
+  video.srcObject = stream;
+  return new Promise((resolve) => {
+    video.onloadedmetadata = () => resolve();
+  });
+}
+function startLoop() {
+  if (!isRunning) return;
+  drawVideoToCanvas(arCtx, video, WIDTH, HEIGHT);
+  debugCtx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
+  if (controller) {
+    controller.processVideo(arCanvas);
+  }
+  requestAnimationFrame(startLoop);
+}
+function handleARUpdate(data, texts) {
+  if (!isRunning) return;
+  const scaleX = debugCanvas.width / WIDTH;
+  const scaleY = debugCanvas.height / HEIGHT;
+  if (data.type === "processDone") {
+    const now = Date.now();
+    let activeFound = false;
+    let bestStatus = "Buscando...";
+    let maxPriority = -1;
+    for (const key in targetLastSeenTime) {
+      const idx = parseInt(key);
+      const timeSinceSeen = now - targetLastSeenTime[idx];
+      if (timeSinceSeen < 200) {
+        if (maxPriority < 2) {
+          bestStatus = `Target ${idx + 1} Detectado`;
+          maxPriority = 2;
+        }
+        activeFound = true;
+      } else if (timeSinceSeen < LOST_GRACE_PERIOD) {
+        if (maxPriority < 1) {
+          bestStatus = `Target ${idx + 1} (Holding...)`;
+          maxPriority = 1;
+        }
+        activeFound = true;
+      }
+    }
+    statusLog.textContent = bestStatus;
+    if (!activeFound) {
+      detectedMsg.classList.remove("visible");
+    }
+    return;
+  }
+  if (data.type === "updateMatrix") {
+    const { targetIndex, worldMatrix, screenCoords } = data;
+    const now = Date.now();
+    if (targetIndex !== void 0 && targetIndex >= 0 && worldMatrix) {
+      targetLastSeenTime[targetIndex] = now;
+      targetLastScreenCoords[targetIndex] = screenCoords;
+      drawTrackingPoints(screenCoords, scaleX, scaleY);
+      if (targetDetectionTimes[targetIndex] === null) {
+        targetDetectionTimes[targetIndex] = now;
+        targetLastSpokenText[targetIndex] = texts[targetIndex];
+      }
+      if (now - targetDetectionTimes[targetIndex] >= 1e3 && targetLastSpokenText[targetIndex] === texts[targetIndex]) {
+        const textToSpeak = texts[targetIndex];
+        triggerTTS(textToSpeak);
+        detectedMsg.textContent = textToSpeak;
+        detectedMsg.classList.add("visible");
+        setTimeout(() => detectedMsg.classList.remove("visible"), 2e3);
+      }
+      return;
+    }
+    if (targetIndex !== void 0 && targetIndex >= 0) {
+      if (now - targetLastSeenTime[targetIndex] < LOST_GRACE_PERIOD) {
+        const lastCoords = targetLastScreenCoords[targetIndex];
+        if (lastCoords) {
+          drawTrackingPoints(lastCoords, scaleX, scaleY, true);
+        }
+      }
+    }
+  }
+}
+function triggerTTS(text) {
+  if (!text) return;
+  const now = Date.now();
+  if (text === lastSpokenText && now - lastSpeakTime < 5e3) {
+    return;
+  }
+  if (now - lastSpeakTime < 2e3) {
+    return;
+  }
+  lastSpokenText = text;
+  lastSpeakTime = now;
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = "es-ES";
+  window.speechSynthesis.speak(utterance);
 }
 function drawVideoToCanvas(ctx, videoElement, targetWidth, targetHeight) {
   const videoWidth = videoElement.videoWidth;
@@ -12926,191 +13185,23 @@ function drawVideoToCanvas(ctx, videoElement, targetWidth, targetHeight) {
   }
   ctx.drawImage(videoElement, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight);
 }
-btnCapture.onclick = async () => {
-  btnCapture.disabled = true;
-  btnCapture.classList.remove("btn-pulse");
-  instructionText.textContent = "Procesando imagen... un momento";
-  log("Capturando frame...");
-  captureCanvas = document.createElement("canvas");
-  captureCanvas.width = WIDTH;
-  captureCanvas.height = HEIGHT;
-  const ctx = captureCanvas.getContext("2d");
-  drawVideoToCanvas(ctx, video, WIDTH, HEIGHT);
-  capturePreview.src = captureCanvas.toDataURL();
-  capturePreview.style.display = "block";
-  log("Compilando target al vuelo...");
-  const compiler = new OfflineCompiler();
-  try {
-    const compiledData = await compiler.compileImageTargets([
-      {
-        width: WIDTH,
-        height: HEIGHT,
-        data: ctx.getImageData(0, 0, WIDTH, HEIGHT).data
-      }
-    ], (p) => {
-      if (Math.round(p) % 20 === 0) log(`Progreso: ${Math.round(p)}%`);
-    });
-    const buffer = compiler.exportData();
-    const cleanBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-    controller = new BioInspiredController({
-      inputWidth: WIDTH,
-      inputHeight: HEIGHT,
-      debugMode: true,
-      bioInspired: { enabled: true, aggressiveSkipping: false },
-      onUpdate: (data) => handleARUpdate(data, WIDTH, HEIGHT)
-    });
-    await controller.addImageTargetsFromBuffer(cleanBuffer);
-    log("Target registrado con \xE9xito. Iniciando tracking autom\xE1ticamente.");
-    btnCapture.style.display = "none";
-    btnReset.style.display = "block";
-    scanLine.style.display = "none";
-    instructionText.style.opacity = "0";
-    isTesting = true;
-    overlayImg.style.display = "block";
-    startProcessingLoop();
-  } catch (e) {
-    log("Error en compilaci\xF3n: " + e);
-    btnCapture.disabled = false;
-    instructionText.textContent = "Error. Intenta capturar de nuevo.";
+function drawTrackingPoints(coords, sx, sy, isHolding = false) {
+  if (!coords) return;
+  debugCtx.fillStyle = isHolding ? "rgba(255, 165, 0, 0.5)" : "rgba(0, 255, 0, 0.8)";
+  debugCtx.strokeStyle = isHolding ? "rgba(255, 165, 0, 0.8)" : "rgba(0, 255, 0, 0.8)";
+  debugCtx.lineWidth = 2;
+  if (isHolding) {
+    debugCtx.setLineDash([5, 5]);
+  } else {
+    debugCtx.setLineDash([]);
   }
-};
-function startProcessingLoop() {
-  if (!controller || !isTesting) return;
-  function processFrame() {
-    if (!isTesting) return;
-    drawVideoToCanvas(arCtx, video, WIDTH, HEIGHT);
-    requestAnimationFrame(processFrame);
-  }
-  if (controller) {
-    controller.processVideo(arCanvas);
-    processFrame();
+  if (coords.length >= 4) {
+    debugCtx.beginPath();
+    debugCtx.moveTo(coords[0].x * sx, coords[0].y * sy);
+    debugCtx.lineTo(coords[1].x * sx, coords[1].y * sy);
+    debugCtx.lineTo(coords[3].x * sx, coords[3].y * sy);
+    debugCtx.lineTo(coords[2].x * sx, coords[2].y * sy);
+    debugCtx.closePath();
+    debugCtx.stroke();
   }
 }
-btnReset.onclick = () => {
-  location.reload();
-};
-function handleARUpdate(data, markerW, markerH) {
-  if (stats && (data.type === "processDone" || data.type === "updateMatrix")) {
-    stats.update();
-  }
-  if (data.type === "processDone") return;
-  const dpr = window.devicePixelRatio || 1;
-  const scaleX = debugCanvas.width / WIDTH;
-  const scaleY = debugCanvas.height / HEIGHT;
-  if (data.type === "featurePoints" || data.type === "updateMatrix") {
-    debugCtx.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
-  }
-  if (data.type === "featurePoints") {
-    const { featurePoints } = data;
-    if (featurePoints && !isTesting) {
-      drawFeaturePoints(featurePoints, scaleX, scaleY);
-    }
-  }
-  if (data.type === "updateMatrix") {
-    const { worldMatrix, modelViewTransform, screenCoords } = data;
-    if (screenCoords && screenCoords.length > 0) {
-      drawTrackingPoints(screenCoords, scaleX, scaleY);
-    }
-    if (worldMatrix && isTesting) {
-      positionOverlay(modelViewTransform, markerW, markerH);
-      const text = ttsInput.value;
-      if (lastDetectedTime === null) {
-        lastDetectedTime = Date.now();
-        currentDetectedText = text;
-      }
-      if (Date.now() - lastDetectedTime >= 1e3 && currentDetectedText === text) {
-        if (text) {
-          triggerTTS(text);
-        }
-      }
-    } else {
-      lastDetectedTime = null;
-      currentDetectedText = null;
-      if (isTesting) {
-        overlayImg.style.display = "none";
-      }
-    }
-  }
-}
-function triggerTTS(text) {
-  const now = Date.now();
-  if (text === lastSpokenText && now - lastSpeakTime < 5e3) {
-    return;
-  }
-  if (now - lastSpeakTime < 2e3) {
-    return;
-  }
-  lastSpokenText = text;
-  lastSpeakTime = now;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = "es-ES";
-  window.speechSynthesis.speak(utterance);
-}
-function drawFeaturePoints(points, sx, sy) {
-  debugCtx.fillStyle = "rgba(255, 255, 0, 0.6)";
-  const limit = Math.min(points.length, 150);
-  for (let i = 0; i < limit; i++) {
-    const p = points[i];
-    debugCtx.fillRect(p.x * sx - 1, p.y * sy - 1, 2, 2);
-  }
-}
-function drawTrackingPoints(coords, sx, sy) {
-  debugCtx.fillStyle = "rgba(0, 255, 0, 0.8)";
-  const limit = Math.min(coords.length, 100);
-  for (let i = 0; i < limit; i++) {
-    const p = coords[i];
-    debugCtx.fillRect(p.x * sx - 1.5, p.y * sy - 1.5, 3, 3);
-  }
-}
-function positionOverlay(mVT, markerW, markerH) {
-  if (!controller) return;
-  const proj = controller.projectionTransform;
-  const containerRect = arContainer.getBoundingClientRect();
-  const pUL = projectToScreen(0, 0, 0, mVT, proj, WIDTH, HEIGHT, containerRect, false);
-  const pUR = projectToScreen(markerW, 0, 0, mVT, proj, WIDTH, HEIGHT, containerRect, false);
-  const pLL = projectToScreen(0, markerH, 0, mVT, proj, WIDTH, HEIGHT, containerRect, false);
-  const pLR = projectToScreen(markerW, markerH, 0, mVT, proj, WIDTH, HEIGHT, containerRect, false);
-  const matrix2 = solveHomography2(markerW, markerH, pUL, pUR, pLL, pLR);
-  overlayImg.style.width = `${markerW}px`;
-  overlayImg.style.height = `${markerH}px`;
-  overlayImg.style.transformOrigin = "0 0";
-  overlayImg.style.transform = `matrix3d(${matrix2.join(",")})`;
-  overlayImg.style.display = "block";
-}
-function solveHomography2(w, h, p1, p2, p3, p4) {
-  const x1 = p1.sx, y1 = p1.sy;
-  const x2 = p2.sx, y2 = p2.sy;
-  const x3 = p3.sx, y3 = p3.sy;
-  const x4 = p4.sx, y4 = p4.sy;
-  const dx1 = x2 - x4, dx2 = x3 - x4, dx3 = x1 - x2 + x4 - x3;
-  const dy1 = y2 - y4, dy2 = y3 - y4, dy3 = y1 - y2 + y4 - y3;
-  let a, b, c, d, e, f, g, h_coeff;
-  const det = dx1 * dy2 - dx2 * dy1;
-  g = (dx3 * dy2 - dx2 * dy3) / det;
-  h_coeff = (dx1 * dy3 - dx3 * dy1) / det;
-  a = x2 - x1 + g * x2;
-  b = x3 - x1 + h_coeff * x3;
-  c = x1;
-  d = y2 - y1 + g * y2;
-  e = y3 - y1 + h_coeff * y3;
-  f = y1;
-  return [
-    a / w,
-    d / w,
-    0,
-    g / w,
-    b / h,
-    e / h,
-    0,
-    h_coeff / h,
-    0,
-    0,
-    1,
-    0,
-    c,
-    f,
-    0,
-    1
-  ];
-}
-startCamera();

@@ -124,13 +124,16 @@ class BioInspiredController extends Controller {
             while (this.processingVideo) {
                 const inputData = this.inputLoader.loadInput(input);
 
-                // Get current tracking state for bio engine
-                const activeTracking = this.trackingStates.find(s => s.isTracking);
-                const trackingState = activeTracking ? {
+                // Get current tracking states for bio engine
+                const activeTrackings = this.trackingStates.filter(s => s.isTracking);
+                
+                // If multiple targets are tracking, we disable single-target optimization by passing null
+                // This forces BioEngine to rely on global change detection/saliency which is safer for multi-target
+                const trackingState = activeTrackings.length === 1 ? {
                     isTracking: true,
-                    activeOctave: activeTracking.lastOctaveIndex, // Tracked octave index
-                    worldMatrix: activeTracking.currentModelViewTransform
-                        ? this._flattenMatrix(activeTracking.currentModelViewTransform)
+                    activeOctave: activeTrackings[0].lastOctaveIndex, // Tracked octave index
+                    worldMatrix: activeTrackings[0].currentModelViewTransform
+                        ? this._flattenMatrix(activeTrackings[0].currentModelViewTransform)
                         : null
                 } : null;
 
@@ -139,9 +142,9 @@ class BioInspiredController extends Controller {
                 this.lastBioResult = bioResult;
 
                 // If bio engine says we can skip, use prediction
-                if (bioResult.skipped && activeTracking?.isTracking) {
-                    // Use predicted state
-                    this._handleSkippedFrame(activeTracking, bioResult);
+                if (bioResult.skipped && activeTrackings.length > 0) {
+                    // Use predicted state for ALL active targets
+                    this._handleSkippedFrame(activeTrackings, bioResult);
                 } else {
                     // Normal processing with attention regions
                     await this._processWithAttention(input, inputData, bioResult);
@@ -163,24 +166,41 @@ class BioInspiredController extends Controller {
      * Handle a skipped frame using prediction
      * @private
      */
-    private _handleSkippedFrame(trackingState: any, bioResult: any) {
-        // Use predicted matrix
-        if (bioResult.prediction && bioResult.prediction.worldMatrix) {
-            trackingState.currentModelViewTransform = this._unflattenMatrix(bioResult.prediction.worldMatrix);
+    private _handleSkippedFrame(trackingStates: any[], bioResult: any) {
+        // Use predicted matrix if available (currently prediction is global or single-target based)
+        // If we have multiple targets, and bioResult skipped, it means GLOBAL change was low.
+        // So we assume all targets are static relative to camera (or camera static).
+        
+        // Note: bioResult.prediction.worldMatrix is only valid if we passed a single trackingState.
+        // If we passed null (multiple targets), prediction might be empty or based on last frame.
+        // For now, if multiple targets, we keep them as is (static assumption).
+        
+        const hasPrediction = bioResult.prediction && bioResult.prediction.worldMatrix;
+
+        for (const state of trackingStates) {
+            // Only apply prediction if we have it AND we are in single-target mode
+            if (hasPrediction && trackingStates.length === 1) {
+                state.currentModelViewTransform = this._unflattenMatrix(bioResult.prediction.worldMatrix);
+            }
+            
+            // Notify with skipped status for EACH target
+            // We need to find the index of this state in the main array
+            const targetIndex = this.trackingStates.indexOf(state);
+            
+            if (targetIndex !== -1) {
+                const worldMatrix = state.currentModelViewTransform
+                    ? this._glModelViewMatrix(state.currentModelViewTransform, targetIndex)
+                    : null;
+
+                this.onUpdate?.({
+                    type: 'updateMatrix',
+                    targetIndex: targetIndex,
+                    worldMatrix: worldMatrix ? this.featureManager.applyWorldMatrixFilters(targetIndex, worldMatrix, { stability: 0.9 }) : null,
+                    skipped: true,
+                    bioMetrics: this.bioEngine?.getMetrics(),
+                });
+            }
         }
-
-        // Notify with skipped status
-        const worldMatrix = trackingState.currentModelViewTransform
-            ? this._glModelViewMatrix(trackingState.currentModelViewTransform, 0)
-            : null;
-
-        this.onUpdate?.({
-            type: 'updateMatrix',
-            targetIndex: 0,
-            worldMatrix: worldMatrix ? this.featureManager.applyWorldMatrixFilters(0, worldMatrix, { stability: 0.9 }) : null,
-            skipped: true,
-            bioMetrics: this.bioEngine?.getMetrics(),
-        });
 
         this.onUpdate?.({ type: 'processDone' });
     }

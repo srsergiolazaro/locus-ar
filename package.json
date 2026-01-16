@@ -58,7 +58,9 @@
         "prepublishOnly": "npm run build",
         "test": "vitest",
         "test:react": "vite --port 4321 --open tests/reliability-test.html",
-        "test:pnp": "pnpm build && node scripts/pnp-verify-cli.js"
+        "test:demo3": "npm run build:demo3 && vite --port 4322 --open docs/demo3.html",
+        "build:demo4": "esbuild tests/demo4-app.ts --bundle --outfile=docs/demo4-app.js --format=esm",
+        "test:demo4": "npm run build:demo4 && vite --port 4323 --open docs/demo4.html"
     },
     "peerDependencies": {
         "aframe": ">=1.5.0",

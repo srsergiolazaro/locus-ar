@@ -18,6 +18,13 @@ const scanLine = document.getElementById('scan-line')!;
 const overlayImg = document.getElementById('overlay-img') as HTMLImageElement;
 const capturePreview = document.getElementById('capture-preview') as HTMLImageElement;
 const arContainer = document.getElementById('ar-container')!;
+const ttsInput = document.getElementById('tts-input') as HTMLInputElement;
+
+let lastSpokenText = '';
+let lastSpeakTime = 0;
+let lastDetectedTime: number | null = null;
+let currentDetectedText: string | null = null;
+
 /*
 // stats.js integration
 let stats: any = null;
@@ -222,12 +229,49 @@ function handleARUpdate(data: any, markerW: number, markerH: number) {
 
         if (worldMatrix && isTesting) {
             positionOverlay(modelViewTransform, markerW, markerH);
+            
+            // Persistent detection check
+            const text = ttsInput.value;
+            if (lastDetectedTime === null) {
+                lastDetectedTime = Date.now();
+                currentDetectedText = text;
+            }
+
+            if (Date.now() - lastDetectedTime >= 1000 && currentDetectedText === text) { // Check if text is same
+                // Trigger TTS
+                if (text) {
+                    triggerTTS(text);
+                }
+            }
+
         } else {
+            // Reset detection time if not detected
+            lastDetectedTime = null;
+            currentDetectedText = null;
             if (isTesting) {
                 overlayImg.style.display = 'none';
             }
         }
     }
+}
+
+function triggerTTS(text: string) {
+    const now = Date.now();
+    // Debounce: Don't speak same text within 5 seconds
+    if (text === lastSpokenText && now - lastSpeakTime < 5000) {
+        return;
+    }
+    // Don't speak different text too fast (2 sec min gap)
+    if (now - lastSpeakTime < 2000) {
+        return;
+    }
+
+    lastSpokenText = text;
+    lastSpeakTime = now;
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'es-ES'; 
+    window.speechSynthesis.speak(utterance);
 }
 
 function drawFeaturePoints(points: any[], sx: number, sy: number) {

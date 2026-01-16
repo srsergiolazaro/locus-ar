@@ -47,7 +47,7 @@ export interface ControllerOptions {
 class Controller {
     inputWidth: number;
     inputHeight: number;
-    maxTrack: number;
+    maxTrack: number = 1;
     inputLoader: InputLoader;
     markerDimensions: any[] | null = null;
     onUpdate: ((data: any) => void) | null;
@@ -73,17 +73,18 @@ class Controller {
         inputHeight,
         onUpdate = null,
         debugMode = false,
-        maxTrack = 1,
+        maxTrack,
         warmupTolerance = null,
         missTolerance = null,
         filterMinCF = null,
         filterBeta = null,
         worker = null,
-    }: ControllerOptions) {
-        this.inputWidth = inputWidth;
-        this.inputHeight = inputHeight;
-        this.maxTrack = maxTrack;
-
+            }: ControllerOptions) {
+            this.inputWidth = inputWidth;
+            this.inputHeight = inputHeight;
+            if (maxTrack !== undefined) {
+                this.maxTrack = maxTrack;
+            }
         this.featureManager = new FeatureManager();
         this.featureManager.addFeature(new OneEuroFilterFeature(
             filterMinCF === null ? DEFAULT_FILTER_CUTOFF : filterMinCF,
@@ -218,6 +219,7 @@ class Controller {
 
         this.markerDimensions = allDimensions;
         this.matchingDataList = allMatchingData;
+        this.maxTrack = allDimensions.length;
         return { dimensions: allDimensions, matchingDataList: allMatchingData, trackingDataList: allTrackingData };
     }
 
