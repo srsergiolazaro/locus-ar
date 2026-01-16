@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LOCUS AR - Compiler Demo | Generador de Targets</title>
+    <meta name="description"
+        content="Compila imágenes para Realidad Aumentada en el navegador con LOCUS AR Compiler.">
+    <link rel="icon" type="image/png" href="logo.png">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --locus-primary: #6366f1;
+            --locus-primary-dark: #4f46e5;
+            --locus-primary-light: #818cf8;
+            --locus-accent: #06b6d4;
+            --locus-success: #10b981;
+            --locus-warning: #f59e0b;
+            --locus-dark: #0f172a;
+            --locus-darker: #020617;
+            --locus-gray: #64748b;
+            --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #06b6d4 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--locus-darker);
+            color: #e2e8f0;
+            font-family: 'Inter', -apple-system, sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Hero Banner */
+        .hero-banner {
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(6, 182, 212, 0.1) 100%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1.5rem 1rem;
+            text-align: center;
+        }
+
+        .hero-banner h1 {
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .hero-banner .tagline {
+            color: var(--locus-gray);
+            font-size: 1rem;
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        /* Navigation */
+        .nav-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .back-link {
+            color: var(--locus-primary-light);
+            text-decoration: none;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: #fff;
+        }
+
+        /* Main Container */
+        .main-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Compiler Card */
+        .compiler-card {
+            background: #16161a;
+            border: 1px solid #2a2a30;
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+            margin-bottom: 2rem;
+        }
+
+        .compiler-card h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            color: #fff;
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            font-size: 0.95rem;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--gradient-primary);
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(99, 102, 241, 0.5);
+        }
+
+        .btn-primary:disabled {
+            background: var(--locus-gray);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-secondary {
+             background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .preview-container {
+            margin-top: 1.5rem;
+            text-align: center;
+            background: #000;
+            border-radius: 12px;
+            padding: 1rem;
+            border: 1px solid #333;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+
+        .preview-container img {
+            max-width: 100%;
+            max-height: 400px;
+            border-radius: 8px;
+        }
+        
+        .placeholder-text {
+            color: var(--locus-gray);
+        }
+
+        /* Progress Bar */
+        .progress-container {
+            margin-top: 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            height: 10px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--locus-success);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        /* Stats & Logs */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .stat-card .label {
+            font-size: 0.75rem;
+             color: var(--locus-gray);
+             text-transform: uppercase;
+             letter-spacing: 0.05em;
+             margin-bottom: 0.5rem;
+        }
+        
+        .stat-card .value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fff;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        #logs {
+            margin-top: 1.5rem;
+            height: 200px;
+            background: #0a0a0c;
+            border: 1px solid #222;
+            border-radius: 16px;
+            padding: 1rem 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            color: var(--locus-success);
+            position: relative;
+            padding-top: 2.5rem;
+        }
+
+        #logs::before {
+            content: '● CONSOLA DEL COMPILADOR';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 8px 1.5rem;
+            background: #111;
+            border-bottom: 1px solid #222;
+            font-size: 10px;
+            color: var(--locus-gray);
+            letter-spacing: 0.1em;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+    </style>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="nav-bar">
+        <a href="index.html" class="back-link">← Volver a LOCUS</a>
+    </nav>
+
+    <!-- Hero Banner -->
+    <div class="hero-banner">
+        <h1>🏗️ Compiler Demo</h1>
+        <p class="tagline">
+            Compila tus imágenes para usarlas con el motor LOCUS AR.
+            Proceso 100% local en tu navegador.
+        </p>
+    </div>
+
+    <div class="main-container">
+        <div class="compiler-card">
+            <h2>Seleccionar Imagen</h2>
+            <div class="input-group">
+                <div class="file-input-wrapper">
+                    <button class="btn btn-secondary">📂 Seleccionar Archivo</button>
+                    <input type="file" id="imageInput" accept="image/*">
+                </div>
+                 <span id="fileName" style="margin-left: 10px; color: var(--locus-gray);">Ningún archivo seleccionado</span>
+            </div>
+
+            <div class="preview-container" id="previewContainer">
+                <p class="placeholder-text">Vista previa de la imagen</p>
+            </div>
+            
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+
+            <div class="controls">
+                <button id="compileBtn" class="btn btn-primary" disabled>
+                    ⚡ Compilar Imagen
+                </button>
+                <button id="downloadBtn" class="btn btn-secondary" style="display: none;">
+                    💾 Descargar .taar
+                </button>
+            </div>
+            
+             <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="label">Tiempo</div>
+                    <div class="value" id="timeStat">-</div>
+                </div>
+                 <div class="stat-card">
+                    <div class="label">Features</div>
+                    <div class="value" id="featuresStat">-</div>
+                </div>
+                 <div class="stat-card">
+                    <div class="label">Tamaño</div>
+                    <div class="value" id="sizeStat">-</div>
+                </div>
+            </div>
+
+            <div id="logs">Esperando imagen...</div>
+        </div>
+    </div>
+
+    <script type="module" src="./demo3-app.js"></script>
+</body>
+
+</html>
