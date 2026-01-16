@@ -12857,6 +12857,7 @@ var debugCanvas = document.getElementById("debugCanvas");
 var debugCtx = debugCanvas.getContext("2d");
 var arCtx = arCanvas.getContext("2d");
 var emptyMsg = document.getElementById("empty-msg");
+var persistentText = document.getElementById("persistent-text");
 var textModal = document.getElementById("text-modal");
 var modalPreview = document.getElementById("modal-preview");
 var modalInput = document.getElementById("modal-input");
@@ -13120,6 +13121,11 @@ function handleARUpdate(data, texts) {
     statusLog.textContent = bestStatus;
     if (!activeFound) {
       detectedMsg.classList.remove("visible");
+      if (persistentText) {
+        persistentText.textContent = "Esperando detecci\xF3n...";
+        persistentText.style.borderColor = "rgba(255, 255, 255, 0.1)";
+        persistentText.style.background = "rgba(255, 255, 255, 0.05)";
+      }
     }
     return;
   }
@@ -13133,6 +13139,11 @@ function handleARUpdate(data, texts) {
       if (targetDetectionTimes[targetIndex] === null) {
         targetDetectionTimes[targetIndex] = now;
         targetLastSpokenText[targetIndex] = texts[targetIndex];
+      }
+      if (persistentText) {
+        persistentText.textContent = texts[targetIndex];
+        persistentText.style.borderColor = "var(--locus-success)";
+        persistentText.style.background = "rgba(16, 185, 129, 0.1)";
       }
       if (now - targetDetectionTimes[targetIndex] >= 1e3 && targetLastSpokenText[targetIndex] === texts[targetIndex]) {
         const textToSpeak = texts[targetIndex];

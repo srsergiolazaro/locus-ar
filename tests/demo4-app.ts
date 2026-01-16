@@ -20,6 +20,7 @@ const debugCanvas = document.getElementById('debugCanvas') as HTMLCanvasElement;
 const debugCtx = debugCanvas.getContext('2d')!;
 const arCtx = arCanvas.getContext('2d')!;
 const emptyMsg = document.getElementById('empty-msg') as HTMLDivElement;
+const persistentText = document.getElementById('persistent-text') as HTMLDivElement;
 
 // Modal Elements
 const textModal = document.getElementById('text-modal') as HTMLDivElement;
@@ -380,6 +381,11 @@ function handleARUpdate(data: any, texts: string[]) {
 
         if (!activeFound) {
             detectedMsg.classList.remove('visible');
+            if (persistentText) {
+                persistentText.textContent = "Esperando detección...";
+                persistentText.style.borderColor = 'rgba(255, 255, 255, 0.1)';
+                persistentText.style.background = 'rgba(255, 255, 255, 0.05)';
+            }
         }
         return;
     }
@@ -404,6 +410,13 @@ function handleARUpdate(data: any, texts: string[]) {
                 targetDetectionTimes[targetIndex] = now;
                 targetLastSpokenText[targetIndex] = texts[targetIndex];
             }
+            
+            // Update persistent text display immediately on tracking
+            if (persistentText) {
+                persistentText.textContent = texts[targetIndex];
+                persistentText.style.borderColor = 'var(--locus-success)';
+                persistentText.style.background = 'rgba(16, 185, 129, 0.1)';
+            }
 
             if (now - targetDetectionTimes[targetIndex]! >= 1000 && targetLastSpokenText[targetIndex] === texts[targetIndex]) {
                 // TTS Logic
@@ -411,7 +424,7 @@ function handleARUpdate(data: any, texts: string[]) {
                 console.log(`[Demo4] Triggering TTS for target ${targetIndex}: "${textToSpeak}"`);
                 triggerTTS(textToSpeak);
 
-                // Show message
+                // Show message (overlay)
                 detectedMsg.textContent = textToSpeak;
                 detectedMsg.classList.add('visible');
                 setTimeout(() => detectedMsg.classList.remove('visible'), 2000);
