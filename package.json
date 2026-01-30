@@ -1,7 +1,7 @@
 {
     "name": "locus-ar",
     "version": "1.1.18",
-    "description": "High-performance Augmented Reality (AR) engine for React and the Web. 100% Pure JavaScript, zero-dependencies, and bio-inspired tracking.",
+    "description": "High-performance Augmented Reality (AR) engine for React and the Web. 100% Pure JavaScript image tracking, zero-dependencies, bio-inspired foveal attention, and Nanite-style feature extraction.",
     "keywords": [
         "augmented reality",
         "ar",
@@ -12,7 +12,18 @@
         "webar",
         "javascript",
         "webgl",
-        "no-tfjs"
+        "no-tfjs",
+        "nft",
+        "natural-feature-tracking",
+        "three.js",
+        "a-frame",
+        "opencv",
+        "slam",
+        "ar-js",
+        "mind-ar",
+        "tracking",
+        "foveal-attention",
+        "nanite"
     ],
     "author": "Sergio Lázaro <sergio@taptapp.xyz>",
     "license": "Fair Source-0.9",

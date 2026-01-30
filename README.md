@@ -1,6 +1,6 @@
 <div align="center">
   
-# � Locus AR (locus-ar)
+# Locus AR (locus-ar)
 
 <img src="./docs/images/hero-banner.png" alt="Locus AR - High Performance Augmented Reality" width="100%"/>
 
