@@ -56,8 +56,7 @@
     "files": [
         "dist",
         "README.md",
-        "LICENSE",
-        "docs/images"
+        "LICENSE"
     ],
     "scripts": {
         "build": "tsc && node scripts/minify-dist.mjs",

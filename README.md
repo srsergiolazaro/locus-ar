@@ -2,7 +2,7 @@
   
 # Locus AR
 
-<img src="./docs/images/hero-banner.png" alt="Locus AR - High Performance Augmented Reality" width="100%"/>
+<img src="https://raw.githubusercontent.com/srsergiolazaro/locus-ar/main/docs/images/hero-banner.png" alt="Locus AR - High Performance Augmented Reality" width="100%"/>
 
 [![npm version](https://img.shields.io/npm/v/locus-ar.svg?style=flat-square&color=00D4AA)](https://www.npmjs.com/package/locus-ar)
 [![npm downloads](https://img.shields.io/npm/dm/locus-ar.svg?style=flat-square&color=7C3AED)](https://www.npmjs.com/package/locus-ar)
@@ -45,7 +45,7 @@
 ## 🌟 Key Features
 
 <div align="center">
-  <img src="./docs/images/features-grid.png" alt="Locus AR Key Features" width="600"/>
+  <img src="https://raw.githubusercontent.com/srsergiolazaro/locus-ar/main/docs/images/features-grid.png" alt="Locus AR Key Features" width="600"/>
 </div>
 
 <br/>
@@ -74,7 +74,7 @@ npm install locus-ar
 ## 📊 Industry-Leading Benchmarks (v7 Moonshot)
 
 <div align="center">
-  <img src="./docs/images/performance-chart.png" alt="Performance Comparison" width="500"/>
+  <img src="https://raw.githubusercontent.com/srsergiolazaro/locus-ar/main/docs/images/performance-chart.png" alt="Performance Comparison" width="500"/>
 </div>
 
 <br/>
@@ -152,7 +152,7 @@ const tracker = await startTracking({
 ## 🎥 Runtime Usage (AR Tracking)
 
 <div align="center">
-  <img src="./docs/images/ar-tracking-demo.png" alt="AR Tracking Pipeline" width="700"/>
+  <img src="https://raw.githubusercontent.com/srsergiolazaro/locus-ar/main/docs/images/ar-tracking-demo.png" alt="AR Tracking Pipeline" width="700"/>
 </div>
 
 <br/>
@@ -281,7 +281,7 @@ import { TaarThree } from 'locus-ar';
 ## 🏗️ Protocol V11 (Nanite Virtualized Format)
 
 <div align="center">
-  <img src="./docs/images/architecture-flow.png" alt="Architecture Pipeline" width="700"/>
+  <img src="https://raw.githubusercontent.com/srsergiolazaro/locus-ar/main/docs/images/architecture-flow.png" alt="Architecture Pipeline" width="700"/>
 </div>
 
 <br/>
@@ -303,7 +303,7 @@ import { TaarThree } from 'locus-ar';
 ## 🔍 Visual Search & Embeddings (NEW!) 🚀
 
 <div align="center">
-  <img src="./docs/images/visual-search.png" alt="Visual Search & Embeddings" width="600"/>
+  <img src="https://raw.githubusercontent.com/srsergiolazaro/locus-ar/main/docs/images/visual-search.png" alt="Visual Search & Embeddings" width="600"/>
 </div>
 
 <br/>
