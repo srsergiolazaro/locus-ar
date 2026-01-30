@@ -26,7 +26,7 @@
         "nanite"
     ],
     "author": "Sergio Lázaro <sergio@taptapp.xyz>",
-    "license": "Fair Source-0.9",
+    "license": "MIT",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/srsergiolazaro/locus-ar.git"

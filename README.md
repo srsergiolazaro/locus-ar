@@ -1,12 +1,12 @@
 <div align="center">
   
-# Locus AR (locus-ar)
+# Locus AR
 
 <img src="./docs/images/hero-banner.png" alt="Locus AR - High Performance Augmented Reality" width="100%"/>
 
 [![npm version](https://img.shields.io/npm/v/locus-ar.svg?style=flat-square&color=00D4AA)](https://www.npmjs.com/package/locus-ar)
 [![npm downloads](https://img.shields.io/npm/dm/locus-ar.svg?style=flat-square&color=7C3AED)](https://www.npmjs.com/package/locus-ar)
-[![License: Fair Source-0.9](https://img.shields.io/badge/License-Fair_Source--0.9-blue.svg?style=flat-square)](./LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](./LICENSE)
 [![Bundle Size](https://img.shields.io/bundlephobia/minzip/locus-ar?style=flat-square&color=F59E0B)](https://bundlephobia.com/package/locus-ar)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero_TFJS-22C55E?style=flat-square)](https://www.npmjs.com/package/locus-ar)
@@ -354,13 +354,11 @@ await vectorDB.insert({
 
 ## 📄 License & Credits
 
-This project is licensed under the **Fair Source License v0.9**.
+This project is licensed under the **MIT License**.
 
 ### What does this mean?
-- **Small Entities & Individuals**: You can use, modify, and distribute this software for **FREE** (including commercial use).
-- **Large Entities**: If your organization has **100+ employees** OR **$10,000,000+ USD in annual revenue**, you must obtain a separate commercial license from the copyright holder before using it in a commercial context.
-
-This model allows us to keep the project open and free for the community while ensuring sustainability from large-scale corporate usage.
+- **Small & Large Entities**: You can use, modify, and distribute this software for **FREE** (including commercial use) without restrictions.
+- **Open Source**: This is a standard OSI-approved license, making it ideal for integration into any project or organization.
 
 ---
 
