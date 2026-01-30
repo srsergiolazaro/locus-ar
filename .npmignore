@@ -1,6 +1,7 @@
 tests/
 scripts/
 docs/
+!docs/images/
 .github/
 .astro/
 node_modules/
