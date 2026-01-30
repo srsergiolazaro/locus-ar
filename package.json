@@ -59,9 +59,8 @@
         "LICENSE"
     ],
     "scripts": {
-        "build": "tsc && node scripts/minify-dist.mjs",
+        "build": "node scripts/build.mjs",
         "build:dev": "tsc",
-        "minify": "node scripts/minify-dist.mjs",
         "prepublishOnly": "npm run build",
         "test": "vitest",
         "test:react": "vite --port 4321 --open tests/reliability-test.html",
