@@ -1,37 +1,29 @@
 {
-    "name": "@srsergio/taptapp-ar",
+    "name": "locus-ar",
     "version": "1.1.17",
-    "description": "Ultra-fast Augmented Reality (AR) SDK for Node.js and Browser. Image tracking with 100% pure JavaScript, zero-dependencies, and high-performance compilation.",
+    "description": "High-performance Augmented Reality (AR) engine for React and the Web. 100% Pure JavaScript, zero-dependencies, and bio-inspired tracking.",
     "keywords": [
         "augmented reality",
         "ar",
+        "locus",
+        "react-ar",
         "image tracking",
         "computer vision",
         "webar",
-        "a-frame",
-        "three.js",
-        "ar.js",
-        "mindar",
-        "tracking",
-        "opencv",
         "javascript",
         "webgl",
-        "cross-platform",
-        "no-wasm",
-        "no-tfjs",
-        "webxr",
-        "natural-feature-tracking"
+        "no-tfjs"
     ],
     "author": "Sergio Lázaro <sergio@taptapp.xyz>",
     "license": "Fair Source-0.9",
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/srsergiolazaro/taptapp-ar.git"
+        "url": "git+https://github.com/srsergiolazaro/locus-ar.git"
     },
     "bugs": {
-        "url": "https://github.com/srsergiolazaro/taptapp-ar/issues"
+        "url": "https://github.com/srsergiolazaro/locus-ar/issues"
     },
-    "homepage": "https://srsergiolazaro.github.io/taptapp-ar/",
+    "homepage": "https://srsergiolazaro.github.io/locus-ar/",
     "type": "module",
     "main": "./dist/index.js",
     "module": "./dist/index.js",
@@ -40,6 +32,10 @@
         ".": {
             "types": "./dist/index.d.ts",
             "import": "./dist/index.js"
+        },
+        "./client": {
+            "types": "./dist/client/index.d.ts",
+            "import": "./dist/client/index.js"
         },
         "./compiler": {
             "types": "./dist/compiler/offline-compiler.d.ts",

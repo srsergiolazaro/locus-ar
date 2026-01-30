@@ -1,15 +1,15 @@
 <div align="center">
   
-# 🎯 @srsergio/taptapp-ar
+# � Locus AR (locus-ar)
 
-<img src="./docs/images/hero-banner.png" alt="TapTapp AR - High Performance Augmented Reality" width="100%"/>
+<img src="./docs/images/hero-banner.png" alt="Locus AR - High Performance Augmented Reality" width="100%"/>
 
-[![npm version](https://img.shields.io/npm/v/@srsergio/taptapp-ar.svg?style=flat-square&color=00D4AA)](https://www.npmjs.com/package/@srsergio/taptapp-ar)
-[![npm downloads](https://img.shields.io/npm/dm/@srsergio/taptapp-ar.svg?style=flat-square&color=7C3AED)](https://www.npmjs.com/package/@srsergio/taptapp-ar)
+[![npm version](https://img.shields.io/npm/v/locus-ar.svg?style=flat-square&color=00D4AA)](https://www.npmjs.com/package/locus-ar)
+[![npm downloads](https://img.shields.io/npm/dm/locus-ar.svg?style=flat-square&color=7C3AED)](https://www.npmjs.com/package/locus-ar)
 [![License: Fair Source-0.9](https://img.shields.io/badge/License-Fair_Source--0.9-blue.svg?style=flat-square)](./LICENSE)
-[![Bundle Size](https://img.shields.io/bundlephobia/minzip/@srsergio/taptapp-ar?style=flat-square&color=F59E0B)](https://bundlephobia.com/package/@srsergio/taptapp-ar)
+[![Bundle Size](https://img.shields.io/bundlephobia/minzip/locus-ar?style=flat-square&color=F59E0B)](https://bundlephobia.com/package/locus-ar)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Ready-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero_TFJS-22C55E?style=flat-square)](https://www.npmjs.com/package/@srsergio/taptapp-ar)
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero_TFJS-22C55E?style=flat-square)](https://www.npmjs.com/package/locus-ar)
 
 ### 🚀 Ultra-Fast AR Tracking • 100% Pure JavaScript • No TensorFlow Required
 
@@ -17,11 +17,12 @@
 
 ---
 
-**TapTapp AR** is a high-performance Augmented Reality (AR) toolkit for **Node.js** and **Browser** environments. It provides an ultra-fast offline compiler and a lightweight runtime for image tracking.
+**Locus AR** (formerly TapTapp AR) is a high-performance Augmented Reality (AR) engine for **Node.js** and the **Browser**. It provides an ultra-fast offline compiler and a lightweight runtime for image tracking, now featuring a premium client library for React.
 
-**100% Pure JavaScript**: This package is now completely independent of **TensorFlow.js** for both compilation and real-time tracking, resulting in massive performance gains and zero-latency initialization.
+**100% Pure JavaScript**: This package is completely independent of **TensorFlow.js**, resulting in massive performance gains and zero-latency initialization.
 
 ---
+
 
 ## 📖 Table of Contents
 - [🌟 Key Features](#-key-features)
@@ -30,8 +31,8 @@
 - [🛡️ Robustness & Stability](#️-robustness--stability-stress-tested)
 - [🖼️ Compiler Usage](#️-compiler-usage-automatic--jit)
 - [🎥 Runtime Usage](#-runtime-usage-ar-tracking)
-  - [React Component](#1-the-easy-way-react-component-)
-  - [React Hook](#2-high-performance-react-hook-usear-)
+  - [Locus Component](#1-the-premium-way-locus-component-)
+  - [Locus Hook](#2-full-control-hook-uselocus-)
   - [Native API](#3-native-api-starttracking)
   - [Custom Overlays](#4-custom-overlays-beyond-videoimages-)
   - [Three.js / A-Frame](#5-advanced-integration-threejs--a-frame)
@@ -44,7 +45,7 @@
 ## 🌟 Key Features
 
 <div align="center">
-  <img src="./docs/images/features-grid.png" alt="TapTapp AR Key Features" width="600"/>
+  <img src="./docs/images/features-grid.png" alt="Locus AR Key Features" width="600"/>
 </div>
 
 <br/>
@@ -65,7 +66,7 @@
 ## 🛠 Installation
 
 ```bash
-npm install @srsergio/taptapp-ar
+npm install locus-ar
 ```
 
 ---
@@ -78,7 +79,7 @@ npm install @srsergio/taptapp-ar
 
 <br/>
 
-| Metric | Official MindAR | TapTapp AR V11 | Improvement |
+| Metric | Official MindAR | **Locus AR V11** | Improvement |
 | :--- | :--- | :--- | :--- |
 | **Compilation Time** | ~23.50s | **~1.69s (HD)** | 🚀 **~14x Faster** |
 | **Output Size (.taar)** | ~770 KB | **~103 KB** | 📉 **86% Smaller** |
@@ -104,7 +105,7 @@ The latest version has been rigorously tested with an adaptive stress test (`rob
 
 ## 🖼️ Compiler Usage (Automatic / JIT)
 
-The new **TapTapp AR** engine handles compilation automatically in the browser (Just-In-Time). You likely **don't need** to use the offline compiler manually anymore.
+The new **Locus AR** engine handles compilation automatically in the browser (Just-In-Time). You likely **don't need** to use the offline compiler manually anymore.
 
 Simply pass your image URL to the tracker, and it will compile it on the fly:
 
@@ -118,7 +119,7 @@ const tracker = await startTracking({
 However, if you still want to pre-compile for faster startup on low-end devices:
 
 ```javascript
-import { OfflineCompiler } from '@srsergio/taptapp-ar';
+import { OfflineCompiler } from 'locus-ar';
 // ... same compiler code as before ...
 ```
 
@@ -156,51 +157,45 @@ const tracker = await startTracking({
 
 <br/>
 
-### 1. The Easy Way: React Component ⚛️
+### 1. The Premium Way: Locus Component 💎
 
-The simplest, zero-config way to add AR to your app:
+The easiest way to add AR to your React application with automatic positioning via homography:
 
 ```tsx
-import { TaptappAR } from '@srsergio/taptapp-ar/react';
+import { Locus, LocusTransform } from '@srsergio/locus-ar/client';
 
 export const MyARScene = () => (
-  <TaptappAR 
-    config={{
-      targetImageSrc: "https://example.com/target.jpg", // Direct Image URL
-      videoSrc: "https://example.com/overlay.mp4",     // Content to show
-      scale: 1.2
-    }} 
-  />
+  <Locus targets={{ image: "/target.jpg", label: "my-target" }}>
+    {(detections) => (
+      detections.map(det => (
+        <LocusTransform key={det.targetIndex} matrix={det.worldMatrix} screenCoords={det.screenCoords}>
+          {/* This content will float over the physical object perfectly aligned */}
+          <div className="glass-morphism">
+            <h1>Locus Detected!</h1>
+          </div>
+        </LocusTransform>
+      ))
+    )}
+  </Locus>
 );
 ```
 
-### 2. High-Performance React Hook: `useAR` 🪝
+### 2. Full Control: Hook `useLocus` 🧠
 
-For more control over the AR state or custom UI overlays:
+For advanced users who need to integrate the logic into their own systems:
 
 ```tsx
-import { useAR } from '@srsergio/taptapp-ar/react';
+import { useLocus } from '@srsergio/locus-ar/client';
 
 const MyCustomAR = () => {
-  const { 
-    containerRef, 
-    overlayRef, 
-    status, 
-    trackedPoints, 
-    error 
-  } = useAR({
-    targetImageSrc: "target.png",
-    scale: 1.0
-  });
+  const { state, detections, start } = useLocus([{ image: "target.png" }]);
 
   return (
-    <div ref={containerRef} style={{ width: '100%', height: '100vh' }}>
-      {/* Your custom 3D or 2D overlay */}
-      <video ref={overlayRef} src="content.mp4" />
-      
-      {/* Use trackedPoints for custom visualizations */}
-      {trackedPoints.map((p, i) => (
-        <div key={i} style={{ position: 'absolute', left: p.x, top: p.y }} />
+    <div>
+      <video ref={(el) => el && start(el)} />
+      {state === 'tracking' && <p>Searching for target...</p>}
+      {detections.map(d => (
+        <div key={d.targetIndex}>Detected {d.label}</div>
       ))}
     </div>
   );
@@ -212,6 +207,8 @@ const MyCustomAR = () => {
 For vanilla JS or custom integrations:
 
 ```typescript
+import { startTracking } from '@srsergio/locus-ar';
+
 const tracker = await startTracking({
     targetSrc: './assets/target.jpg',
     container: document.getElementById('ar-container'),
@@ -275,7 +272,7 @@ We still provide wrappers for 3D engines if you need to render complex 3D models
 
 #### Three.js Adapter
 ```javascript
-import { TaarThree } from '@srsergio/taptapp-ar';
+import { TaarThree } from 'locus-ar';
 // ... (standard Three.js integration)
 ```
 
@@ -289,7 +286,7 @@ import { TaarThree } from '@srsergio/taptapp-ar';
 
 <br/>
 
-TapTapp AR uses a proprietary **Nanite-style Vision Codec** that is significantly more efficient than standard AR formats.
+**Locus AR** uses a proprietary **Nanite-style Vision Codec** that is significantly more efficient than standard AR formats.
 
 - **Virtualized Multi-Octave Features**: Instead of storing redundant images for each scale, V11 stores a single high-res keyframe with features stratified across 6 octaves.
 - **Dynamic Scale Filtering**: The tracking engine estimates the target's current scale and dynamically filters the matching search space, reducing Hamming distance ops by up to 90%.
@@ -311,7 +308,7 @@ TapTapp AR uses a proprietary **Nanite-style Vision Codec** that is significantl
 
 <br/>
 
-TapTapp AR now includes a state-of-the-art **Image Embedding** system based on Hyperdimensional Computing (HDC). This allows you to convert any image into a tiny mathematical fingerprint (vector) for ultra-fast visual search, deduplication, and clustering.
+**Locus AR** now includes a state-of-the-art **Image Embedding** system based on Hyperdimensional Computing (HDC). This allows you to convert any image into a tiny mathematical fingerprint (vector) for ultra-fast visual search, deduplication, and clustering.
 
 ### 🍱 Embedding Modes
 | Mode | Size | Speed | Recommendation |
@@ -325,7 +322,7 @@ TapTapp AR now includes a state-of-the-art **Image Embedding** system based on H
 Create visual embeddings and compare them just like you do with Text LLMs:
 
 ```javascript
-import { visualSearch } from '@srsergio/taptapp-ar';
+import { visualSearch } from 'locus-ar';
 
 // 1. Get a Dense Vector (Array of numbers) - LLM Standard
 const embedding = await visualSearch.compute('product.jpg');
@@ -366,8 +363,14 @@ This project is licensed under the **Fair Source License v0.9**.
 This model allows us to keep the project open and free for the community while ensuring sustainability from large-scale corporate usage.
 
 ---
+
+## 💎 Why Locus?
+
+Locus was built to be the most used AR library in its category. We don't just provide the technology; we provide the **user experience**. We've eliminated the parameters that often break AR on the web so that you can always offer a premium experience to your users.
+
+Designed with ❤️ by the **TapTapp** team. The future of web AR is called **Locus**.
+
+---
 MIT © [srsergiolazaro](https://github.com/srsergiolazaro)
 
 Based on core research from the community, but completely re-written for high-performance binary processing and JS-only execution.
-
-

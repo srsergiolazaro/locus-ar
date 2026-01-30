@@ -32,7 +32,7 @@ Este documento detalla las características modulares y mejoras de rendimiento i
 
 ## Cómo desactivar una característica rápidamente
 
-En `packages/taptapp-ar/src/compiler/controller.ts`, puedes comentar la línea donde se añade la característica en el constructor o configurar el flag `enabled: false` en la instancia.
+En `packages/locus-ar/src/compiler/controller.ts`, puedes comentar la línea donde se añade la característica en el constructor o configurar el flag `enabled: false` en la instancia.
 
 ```typescript
 // Ejemplo para desactivar suavizado

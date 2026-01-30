@@ -188,7 +188,7 @@ function initCopyButtons() {
 
     if (copyBtn && installBox) {
         copyBtn.addEventListener('click', async () => {
-            const text = 'npm install @srsergio/taptapp-ar';
+            const text = 'npm install locus-ar';
             await copyToClipboard(text);
             copyBtn.classList.add('copied');
             setTimeout(() => copyBtn.classList.remove('copied'), 2000);

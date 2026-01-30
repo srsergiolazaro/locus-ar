@@ -6,7 +6,7 @@
  * 
  * @example
  * ```typescript
- * import { createTracker } from 'taptapp-ar';
+ * import { createTracker } from 'locus-ar';
  * 
  * const tracker = await createTracker({
  *   targetSrc: './my-target.png',
