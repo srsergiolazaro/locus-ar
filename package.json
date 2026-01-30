@@ -1,6 +1,6 @@
 {
     "name": "locus-ar",
-    "version": "1.1.18",
+    "version": "1.1.19",
     "description": "High-performance Augmented Reality (AR) engine for React and the Web. 100% Pure JavaScript image tracking, zero-dependencies, bio-inspired foveal attention, and Nanite-style feature extraction.",
     "keywords": [
         "augmented reality",
